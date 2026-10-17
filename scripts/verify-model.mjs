@@ -1,6 +1,6 @@
-import { readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { join, resolve, dirname } from "node:path";
+import { pathToFileURL, fileURLToPath } from "node:url";
 
 const dir = resolve(process.argv[2] || ".");
 const lesson = JSON.parse(readFileSync(join(dir, "lesson.json"), "utf8"));
@@ -27,12 +27,26 @@ for (const c of lesson.cases) {
   }
 }
 
+const truthFile = join(dir, "truth.mjs");
+let truthRows = 0;
+if (existsSync(truthFile)) {
+  const { cpp } = await import(pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), "lib/cpp.mjs")).href);
+  const truth = await import(pathToFileURL(truthFile).href);
+  const out = await truth.checks({ cpp, model, lesson });
+  for (const r of out) {
+    if (r.skip) { console.log(`skipped ${r.id}: ${r.skip}`); continue; }
+    rows.push({ id: r.id, field: r.field, expected: String(r.expected), got: String(r.got), ok: !!r.ok, trust: r.trust ?? "reality" });
+    truthRows++;
+    if (!r.ok) failed++;
+  }
+}
+
 const w = (s, n) => String(s).padEnd(n);
-console.log(`${w("case", 6)}${w("field", 8)}${w("answer sheet", 14)}${w("model", 14)}result`);
-for (const r of rows) console.log(`${w(r.id, 6)}${w(r.field, 8)}${w(r.expected, 14)}${w(r.got, 14)}${r.ok ? "ok" : "FAIL"}`);
+console.log(`${w("case", 8)}${w("field", 16)}${w("expected", 22)}${w("got", 22)}result`);
+for (const r of rows) console.log(`${w(r.id, 8)}${w(r.field, 16)}${w(r.expected, 22)}${w(r.got, 22)}${r.ok ? "ok" : "FAIL"}${r.trust === "reality" ? "  (checked against reality)" : ""}`);
 
 const cases = lesson.cases.length;
 const passedCases = lesson.cases.filter((c) => rows.filter((r) => r.id === c.id).every((r) => r.ok)).length;
-writeFileSync(join(dir, "verified.json"), JSON.stringify({ cases, passed: passedCases, fields: rows.length, failedFields: failed }, null, 2) + "\n");
-console.log(failed ? `\ntruth gate FAILED: ${failed} field(s) disagree with the answer sheet` : `\ntruth gate passed: ${passedCases}/${cases} answers reproduced`);
+writeFileSync(join(dir, "verified.json"), JSON.stringify({ cases, passed: passedCases, fields: rows.length, realityChecks: truthRows, failedFields: failed }, null, 2) + "\n");
+console.log(failed ? `\ntruth gate FAILED: ${failed} field(s) disagree with the answer sheet` : `\ntruth gate passed: ${passedCases}/${cases} answers reproduced${truthRows ? `, ${truthRows} reality checks` : ""}`);
 process.exit(failed ? 1 : 0);

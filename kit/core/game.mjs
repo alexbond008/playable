@@ -5,6 +5,7 @@ import { createAudio } from "./audio.mjs";
 import { createInteraction } from "./interact.mjs";
 import { LOOKS, LOOK_ORDER } from "./looks.mjs";
 import { HUD_CSS } from "./hud-css.mjs";
+import { CODE_CSS } from "./code.mjs";
 
 const h = (tag, attrs = {}, ...kids) => {
   const el = document.createElement(tag);
@@ -33,7 +34,7 @@ const MECH = { tune: "Tune", predict: "Predict", fermi: "Fermi", break: "Break i
 
 export async function playable(def) {
   const style = document.createElement("style");
-  style.textContent = HUD_CSS;
+  style.textContent = HUD_CSS + CODE_CSS;
   document.head.append(style);
   document.title = `${def.title} · Playable`;
 
@@ -47,7 +48,7 @@ export async function playable(def) {
   const interaction = createInteraction(stage, audio);
   const overlay = h("div", { id: "wtags" });
   hud.append(overlay);
-  const ctx = { stage, B, audio, interaction, THREE, h, overlay };
+  const ctx = { stage, B, audio, interaction, THREE, h, overlay, hud };
   const world = await def.build(ctx);
   const stats = B.finalize();
   world.redraw?.();

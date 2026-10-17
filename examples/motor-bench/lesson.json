@@ -1,0 +1,41 @@
+{
+  "id": "motor-bench",
+  "serial": "PLAYABLE-01",
+  "title": "Motor Bench",
+  "subject": ["electrical", "machines", "dc-motors"],
+  "source": {
+    "title": "Tutorial 1.1 — Brushed DC motors",
+    "kind": "problem-set",
+    "note": "8 questions with official answers; * marks exam level (Q5–Q8)."
+  },
+  "concepts": [
+    { "id": "speed-units", "title": "Speed in rpm and rad/s", "anchor": "Q1" },
+    { "id": "shaft-power", "title": "Shaft power P = Tω", "anchor": "Q1" },
+    { "id": "torque-constant", "title": "Torque from current, T = K·I", "anchor": "Q2" },
+    { "id": "back-emf", "title": "Back EMF, E = K·ω", "anchor": "Q2" },
+    { "id": "voltage-equation", "title": "Armature voltage, V = E + I·R", "anchor": "Q3" },
+    { "id": "efficiency", "title": "Efficiency, η = Tω / VI", "anchor": "Q3" },
+    { "id": "speed-droop", "title": "Speed falls linearly with load", "anchor": "Q4" },
+    { "id": "resistive-braking", "title": "Resistive braking, I = E / (R_A + R_b)", "anchor": "Q5" },
+    { "id": "kinetic-energy", "title": "Stored energy, ½Jω²", "anchor": "Q6" },
+    { "id": "friction", "title": "Viscous friction in the torque balance", "anchor": "Q7" },
+    { "id": "load-sharing", "title": "Two motors on one shaft", "anchor": "Q8" }
+  ],
+  "misconceptions": [
+    { "concept": "speed-droop", "text": "Doubling the load halves the speed (or doubles the speed drop from zero)." },
+    { "concept": "torque-constant", "text": "K_T and K_E are different numbers that must both be given." },
+    { "concept": "resistive-braking", "text": "A smaller brake resistor is always safer because it takes less voltage." },
+    { "concept": "load-sharing", "text": "The motor with the bigger K and smaller R must carry more of the load." }
+  ],
+  "cases": [
+    { "id": "Q1", "solver": "q1", "trust": "official", "given": { "n": 2500, "T": 4 }, "expect": { "omega": "261.8", "P": "1047" } },
+    { "id": "Q2", "solver": "q2", "trust": "official", "given": { "I": 10, "K": 1.5, "n": 3000 }, "expect": { "T": "15", "E": "471" } },
+    { "id": "Q3", "solver": "q3", "trust": "official", "given": { "K": 0.2, "R": 0.1, "T": 3, "n": 2000 }, "expect": { "V": "43.4", "eta": "96.5" } },
+    { "id": "Q4", "solver": "q4", "trust": "official", "given": { "n0": 2500, "n1": 2450 }, "expect": { "n2": "2400" } },
+    { "id": "Q5", "solver": "q5", "trust": "official", "given": { "K": 0.2, "R": 0.1, "n": 2500, "Tb": 4 }, "expect": { "Rb": "2.52" } },
+    { "id": "Q6", "solver": "q6", "trust": "official", "given": { "J_gcm2": 21000, "n": 3000, "t": 0.5 }, "expect": { "P": "207" } },
+    { "id": "Q7", "solver": "q7", "trust": "official", "given": { "K": 0.318, "R": 0.08, "V": 100, "Fc": 0.0015, "TL": 3.2 }, "expect": { "n": "2975", "n0": "3003", "drop": "0.9" },
+      "note": "The official no-load speed (3003 rpm) is the ideal V/K. With the stated friction included at no load it would be 2999 rpm; the model follows the answer sheet and the game says so." },
+    { "id": "Q8", "solver": "q8", "trust": "official", "given": { "V": 200, "K1": 0.61, "R1": 4.2, "K2": 0.63, "R2": 4.1, "Fc": 0.0033, "TL": 5 }, "expect": { "T1": "3.33", "T2": "2.63", "spread": "12" } }
+  ]
+}

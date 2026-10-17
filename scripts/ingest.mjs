@@ -9,6 +9,12 @@ if (!inputs.length) {
   console.error("usage: node scripts/ingest.mjs <file-or-folder> [...more] [--out=source-pack]");
   process.exit(2);
 }
+const missing = inputs.filter((p) => !existsSync(p));
+if (missing.length) {
+  for (const m of missing) console.error(`ingest: not found: ${m}`);
+  if (missing.some((m) => m.startsWith("/Volumes/"))) console.error("The path is on an external drive. Is it plugged in and mounted? (macOS: diskutil list, then diskutil mount readOnly <disk>)");
+  process.exit(2);
+}
 const out = resolve(outArg ? outArg.slice(6) : "source-pack");
 mkdirSync(join(out, "text"), { recursive: true });
 mkdirSync(join(out, "media"), { recursive: true });
@@ -48,7 +54,33 @@ function readZip(buf) {
 
 const decode = (s) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n)).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16))).replace(/&amp;/g, "&");
 
+function texts(x) {
+  return [...x.matchAll(/<m:t[^>]*>([^<]*)<\/m:t>|<w:t[^>]*>([^<]*)<\/w:t>/g)].map((m) => decode(m[1] ?? m[2])).join("");
+}
+function part(x, tag) {
+  const m = x.match(new RegExp(`<m:${tag}>([\\s\\S]*)</m:${tag}>`));
+  return m ? texts(m[1]) : "";
+}
+function flattenMath(xml) {
+  const rules = [
+    [/<m:f>((?:(?!<m:f>)[\s\S])*?)<\/m:f>/, (x) => `(${part(x, "num")})/(${part(x, "den")})`],
+    [/<m:sSup>((?:(?!<m:sSup>)[\s\S])*?)<\/m:sSup>/, (x) => `${part(x, "e")}^(${part(x, "sup")})`],
+    [/<m:sSub>((?:(?!<m:sSub>)[\s\S])*?)<\/m:sSub>/, (x) => `${part(x, "e")}_${part(x, "sub")}`],
+    [/<m:rad>((?:(?!<m:rad>)[\s\S])*?)<\/m:rad>/, (x) => `√(${part(x, "e")})`],
+    [/<m:d>((?:(?!<m:d>)[\s\S])*?)<\/m:d>/, (x) => `(${texts(x)})`],
+  ];
+  for (let pass = 0; pass < 40; pass++) {
+    let changed = false;
+    for (const [re, fn] of rules) {
+      xml = xml.replace(re, (whole, inner) => { changed = true; return `<m:t>${fn(inner).replace(/&/g, "&amp;").replace(/</g, "&lt;")}</m:t>`; });
+    }
+    if (!changed) break;
+  }
+  return xml;
+}
+
 function docxText(xml) {
+  xml = flattenMath(xml);
   const paras = [];
   for (const p of xml.split(/<\/w:p>/)) {
     let line = "";
@@ -65,6 +97,43 @@ function docxText(xml) {
     if (line.trim()) paras.push(line.trimEnd());
   }
   return paras.join("\n");
+}
+
+function imageSize(buf) {
+  if (buf.length > 24 && buf.readUInt32BE(0) === 0x89504e47) return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+  if (buf.length > 4 && buf[0] === 0xff && buf[1] === 0xd8) {
+    let i = 2;
+    while (i < buf.length - 9) {
+      if (buf[i] !== 0xff) { i++; continue; }
+      const marker = buf[i + 1];
+      const len = buf.readUInt16BE(i + 2);
+      if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) return { w: buf.readUInt16BE(i + 7), h: buf.readUInt16BE(i + 5) };
+      i += 2 + len;
+    }
+  }
+  if (buf.length > 10 && buf.toString("latin1", 0, 3) === "GIF") return { w: buf.readUInt16LE(6), h: buf.readUInt16LE(8) };
+  return null;
+}
+
+function docxImagePlacement(z) {
+  const placement = new Map();
+  if (!z.has("word/_rels/document.xml.rels")) return placement;
+  const rels = new Map([...z.get("word/_rels/document.xml.rels")().toString("utf8").matchAll(/<Relationship [^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g)].map((m) => [m[1], basename(m[2])]));
+  const xml = z.get("word/document.xml")().toString("utf8");
+  let heading = "";
+  let lastText = "";
+  let order = 0;
+  for (const p of xml.split(/<\/w:p>/)) {
+    const style = p.match(/<w:pStyle w:val="([^"]+)"/)?.[1] ?? "";
+    const text = [...p.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((m) => decode(m[1])).join("").trim();
+    if (text && (/^(Heading|Title)/i.test(style) || /^Q\s*\d|^Question\s*\d|^Step\s*\d/i.test(text))) heading = text.slice(0, 90);
+    for (const m of p.matchAll(/r:embed="([^"]+)"/g)) {
+      const name = rels.get(m[1]);
+      if (name && !placement.has(name)) placement.set(name, { order: ++order, heading, context: (text || lastText).slice(0, 120) });
+    }
+    if (text) lastText = text;
+  }
+  return placement;
 }
 
 function slidesText(entries) {
@@ -177,13 +246,21 @@ for (const file of files) {
       if (ext === ".xlsx") { f.kind = "spreadsheet"; text = xlsxText(z); }
       if (ext === ".slx") { f.kind = "simulink"; text = simulinkText(z); f.blocks = (text.match(/^ {2}\w+ "/gm) || []).length; }
       const media = [...z.keys()].filter((n) => /\/media\/[^/]+\.(png|jpe?g|gif|emf|wmf|svg)$/i.test(n));
+      const placement = ext === ".docx" ? docxImagePlacement(z) : new Map();
       if (media.length) {
         f.images = [];
+        let skipped = 0;
         for (const m of media) {
+          const data = z.get(m)();
+          const size = imageSize(data);
+          if (size && (size.w < 48 || size.h < 32)) { skipped++; continue; }
           const target = safeName(`${rel}__${basename(m)}`);
-          writeFileSync(join(out, "media", target), z.get(m)());
-          f.images.push(`media/${target}`);
+          writeFileSync(join(out, "media", target), data);
+          const where = placement.get(basename(m));
+          f.images.push({ file: `media/${target}`, ...(size ?? {}), ...(where ?? {}) });
         }
+        f.images.sort((a, b) => (a.order ?? 1e9) - (b.order ?? 1e9));
+        if (skipped) f.imagesSkipped = `${skipped} tiny images (equation or drawing fragments) skipped`;
       }
     } else if (ext === ".pdf") {
       f.kind = "pdf";
@@ -225,4 +302,4 @@ const kinds = inventory.reduce((m, f) => ((m[f.kind] = (m[f.kind] || 0) + 1), m)
 console.log(`ingested ${inventory.length} file(s) → ${relative(process.cwd(), out) || out}/`);
 console.log(`kinds: ${Object.entries(kinds).map(([k, n]) => `${k} ${n}`).join(" · ")}`);
 console.log("\nread first:");
-for (const f of inventory.slice(0, 8)) console.log(`  ${String(f.score).padStart(2)}  ${f.path}${f.pages ? ` (${f.pages} pages)` : ""}${f.slides ? ` (${f.slides} slides)` : ""}${f.words ? ` (${f.words} words)` : ""}${f.blocks ? ` (${f.blocks} blocks)` : ""}${f.images ? ` +${f.images.length} images` : ""}${f.error ? ` ERROR ${f.error}` : ""}`);
+for (const f of inventory.slice(0, 8)) console.log(`  ${String(f.score).padStart(2)}  ${f.path}${f.pages ? ` (${f.pages} pages)` : ""}${f.slides ? ` (${f.slides} slides)` : ""}${f.words ? ` (${f.words} words)` : ""}${f.blocks ? ` (${f.blocks} blocks)` : ""}${f.images ? ` +${f.images.length} images${f.imagesSkipped ? ` (${f.imagesSkipped.split(" ")[0]} tiny skipped)` : ""}` : ""}${f.error ? ` ERROR ${f.error}` : ""}`);

@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Playable</title>
+<meta name="description" content="An agent skill that turns STEM course material into 3D learning games with real physics, sound and verified answers.">
+<meta property="og:title" content="Playable">
+<meta property="og:description" content="Drop in your course. Play it. Every answer verified.">
+<meta property="og:image" content="img/og.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Doto:wght@700;900&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: dark graphite bench page; hero = live game; numbered collectible gallery; plain sections after. */
+:root{
+  color-scheme: dark;
+  --bg:#0E0F10; --bg2:#151618; --panel:#1B1C1F; --line:#2C2E33; --ink:#ECE7DC; --mute:#8D8F96;
+  --accent:#FF5A1F; --phosphor:#3CFF8F; --signal:#F0E442; --current:#56B4E9; --brass:#C99A4B;
+  --f-ui:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  --f-dot:"Doto","JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:17px;line-height:1.5}
+a{color:inherit}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+nav.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+nav.top .wrap{display:flex;align-items:center;gap:22px;height:56px}
+.mark{font-family:var(--f-dot);font-weight:900;font-size:24px;color:var(--accent);text-decoration:none;letter-spacing:.03em}
+nav.top a.l{font-family:var(--f-mono);font-size:12.5px;color:var(--mute);text-decoration:none;letter-spacing:.06em;text-transform:uppercase}
+nav.top a.l:hover{color:var(--ink)}
+nav.top .sp{flex:1}
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel);padding:10px 16px;font:inherit;font-size:15px;color:var(--ink);cursor:pointer;text-decoration:none}
+.btn.hot{background:var(--accent);border-color:var(--accent);color:#16110D;font-weight:600}
+.hero{padding-block:56px 40px}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
+h1{font-family:var(--f-dot);font-weight:900;font-size:clamp(46px,8.5vw,112px);line-height:.92;margin:14px 0 18px;letter-spacing:.01em;text-wrap:balance}
+h1 em{font-style:normal;color:var(--accent)}
+.lede{font-size:clamp(18px,2.2vw,22px);max-width:60ch;color:var(--ink);margin:0 0 24px}
+.lede b{color:var(--phosphor);font-weight:500}
+.install{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:28px}
+.cmd{display:flex;align-items:center;gap:10px;font-family:var(--f-mono);font-size:14px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-width:100%;overflow-x:auto}
+.cmd code{white-space:nowrap}
+.cmd button{font:inherit;font-size:12px;background:none;border:1px solid var(--line);color:var(--mute);border-radius:6px;padding:3px 8px;cursor:pointer;flex:none}
+.stage{position:relative;border-radius:18px;overflow:hidden;border:1px solid var(--line);background:#000;aspect-ratio:16/9;max-width:100%}
+.stage img,.stage iframe{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border:0}
+.stage .play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:18px;padding:14px 22px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.stage .cap{position:absolute;left:14px;bottom:12px;font-family:var(--f-mono);font-size:12px;color:var(--ink);background:color-mix(in srgb,var(--bg) 80%,transparent);border:1px solid var(--line);border-radius:6px;padding:4px 8px}
+section{padding-block:64px;border-top:1px solid var(--line)}
+h2{font-size:clamp(28px,4vw,42px);line-height:1.08;margin:8px 0 14px;font-weight:600;text-wrap:balance}
+.sub{color:var(--mute);max-width:62ch;margin:0 0 28px}
+.flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:10px;align-content:start}
+.step .n{font-family:var(--f-dot);font-weight:900;font-size:30px;color:var(--accent);line-height:1}
+.step h3{margin:0;font-size:19px}
+.step p{margin:0;color:var(--mute);font-size:15px}
+.step pre{margin:0;font-family:var(--f-mono);font-size:11.5px;line-height:1.5;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;overflow-x:auto;color:var(--ink)}
+.ok{color:var(--phosphor)}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:grid;text-decoration:none;transition:border-color .2s}
+.card:hover{border-color:var(--accent)}
+.card .shot{aspect-ratio:16/10;background:#000;overflow:hidden}
+.card .shot img{width:100%;height:100%;object-fit:cover;display:block}
+.card .meta{padding:14px 16px 16px;display:grid;gap:6px}
+.card .serial{font-family:var(--f-dot);font-weight:900;font-size:18px;color:var(--brass)}
+.card h3{margin:0;font-size:22px;line-height:1.1}
+.card .src{font-size:14px;color:var(--mute)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);border:1px solid var(--line);border-radius:999px;padding:3px 8px}
+.chip.ok{color:var(--phosphor);border-color:color-mix(in srgb,var(--phosphor) 45%,var(--line))}
+.pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.pillar{border-left:3px solid var(--accent);padding:4px 0 4px 16px}
+.pillar h3{margin:0 0 6px;font-size:21px}
+.pillar p{margin:0;color:var(--mute);font-size:15.5px}
+.loop{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0 0;font-family:var(--f-mono);font-size:13px}
+.loop span{border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:var(--bg2)}
+.loop i{font-style:normal;color:var(--mute);align-self:center}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;font-size:14.5px;min-width:560px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);font-weight:500}
+td code{font-family:var(--f-mono);font-size:13px;white-space:nowrap}
+ul.limits{margin:0;padding-left:20px;color:var(--mute);max-width:70ch}
+ul.limits li{margin-bottom:8px}
+footer{padding-block:40px 60px;border-top:1px solid var(--line);color:var(--mute);font-size:14px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between}
+@media (max-width:640px){nav.top a.l.opt{display:none}.hero{padding-block:32px 24px}section{padding-block:44px}}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+</style>
+</head>
+<body>
+<nav class="top" aria-label="Main"><div class="wrap">
+  <a class="mark" href="#">PLAYABLE</a>
+  <a class="l opt" href="#gallery">Gallery</a>
+  <a class="l opt" href="#how">How it works</a>
+  <a class="l" href="#install">Install</a>
+  <span class="sp"></span>
+  <a class="l" href="https://github.com/alexbond008/playable">GitHub</a>
+</div></nav>
+
+<main>
+<header class="hero wrap">
+  <div class="eyebrow">An agent skill for Claude Code, Codex, Antigravity and OpenCode</div>
+  <h1>Drop in your course<br><em>Play it</em></h1>
+  <p class="lede">Playable turns a lecture PDF, a tutorial sheet, coursework or a whole lab folder into a 3D game with real physics, sound and haptics. You predict, you play, the equation unlocks. <b>Every answer is checked against your source before the game is built.</b></p>
+  <div class="install">
+    <div class="cmd"><code id="cmd">npx skills add alexbond008/playable</code><button type="button" id="copy">Copy</button></div>
+    <a class="btn" href="#gallery">See the games</a>
+  </div>
+  <div class="stage" id="hero">
+    <img src="{{HERO_IMG}}" alt="{{HERO_ALT}}">
+    <button class="btn hot play" type="button" id="playHero">▶ Play {{HERO_TITLE}} live</button>
+    <span class="cap">{{HERO_SERIAL}} · built from {{HERO_SOURCE}}</span>
+  </div>
+</header>
+
+<section id="gallery"><div class="wrap">
+  <div class="eyebrow">The collection</div>
+  <h2>Every game is built from real course material</h2>
+  <p class="sub">Each one is numbered, playable in the browser, and carries its verification: the answers from its source that the simulation reproduces, and the checks run against reality.</p>
+  <div class="gallery">{{GALLERY}}</div>
+</div></section>
+
+<section id="how"><div class="wrap">
+  <div class="eyebrow">How it works</div>
+  <h2>From a static PDF to a game that tells the truth</h2>
+  <p class="sub">One command. The agent reads everything you give it, proves the physics against your answer sheet, then builds the game from a hand-crafted kit.</p>
+  <div class="flow">
+    <div class="step"><span class="n">01</span><h3>Read the source</h3><p>PDFs, docx, slides, spreadsheets, code, Simulink models and whole lab folders. Answers become test cases; your own answers become claims to check.</p></div>
+    <div class="step"><span class="n">02</span><h3>Pass the truth gate</h3><p>The model must reproduce every official answer. Code is compiled and run for real.</p><pre>{{TRUTH_SAMPLE}}</pre></div>
+    <div class="step"><span class="n">03</span><h3>Build and playtest</h3><p>A single offline HTML file. A bot plays every level on desktop and phone, drags every control, and checks the frame budget before you see it.</p></div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="eyebrow">What makes it different</div>
+  <h2>The game is the lesson</h2>
+  <div class="pillars">
+    <div class="pillar"><h3>Learning science, built in</h3><p>Predict first and say how sure you are. Discover the relationship with your hands. The equation unlocks as a power-up you use in later levels. Recall questions come back days later.</p></div>
+    <div class="pillar"><h3>It's true</h3><p>Every number is reproduced from your source, and every claim about code is checked with a real compiler. When the answer sheet and the physics disagree, the game says so.</p></div>
+    <div class="pillar"><h3>It feels like a machine</h3><p>Real objects on a workbench, a physics engine, sound that follows the physics, haptic detents, and three looks: Bench, Cyanotype and Paper.</p></div>
+  </div>
+  <div class="loop" aria-label="The level loop"><span>Mission</span><i>→</i><span>Predict</span><i>→</i><span>Play</span><i>→</i><span>Reveal</span><i>→</i><span>Power-up</span><i>→</i><span>Recall</span></div>
+</div></section>
+
+<section id="install"><div class="wrap">
+  <div class="eyebrow">Install</div>
+  <h2>Add it to your agent</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Agent</th><th>Command</th></tr></thead>
+    <tbody>
+      <tr><td>Claude Code</td><td><code>npx skills add alexbond008/playable -g -a claude-code</code></td></tr>
+      <tr><td>Codex</td><td><code>npx skills add alexbond008/playable -g -a codex</code></td></tr>
+      <tr><td>Antigravity</td><td><code>npx skills add alexbond008/playable -g -a antigravity</code></td></tr>
+      <tr><td>OpenCode</td><td><code>npx skills add alexbond008/playable -g -a opencode</code></td></tr>
+      <tr><td>Any agent, with git</td><td><code>git clone https://github.com/alexbond008/playable ~/.claude/skills/playable</code></td></tr>
+    </tbody>
+  </table></div>
+  <p class="sub" style="margin-top:20px">Then ask: <code style="font-family:var(--f-mono);color:var(--ink)">/playable turn my tutorial into a game: ~/uni/tutorial-1.pdf</code>. Needs Node.js 20+ and Chrome for the playtest. Nothing to npm install.</p>
+</div></section>
+
+<section><div class="wrap">
+  <div class="eyebrow">Limits</div>
+  <h2>What it is and isn't</h2>
+  <ul class="limits">
+    <li>It teaches what is in your material and checks it against your answers. It does not replace doing the problems.</li>
+    <li>Building a game takes a while; you get an ETA up front. Playing it is instant and works offline.</li>
+    <li>The parts library starts with electrical, mechanical, control and embedded systems. New domains grow the kit.</li>
+    <li>Platform-dependent facts (for example the size of std::string) are stated with the platform they were measured on.</li>
+  </ul>
+</div></section>
+</main>
+
+<footer><div class="wrap">
+  <span>Playable · MIT · made by Aleks Gornik</span>
+  <span>Inspired by <a href="https://github.com/wheresryan22/anatomy">Anatomy</a></span>
+</div></footer>
+
+<script>
+document.getElementById("copy").addEventListener("click", async (e) => {
+  const text = document.getElementById("cmd").textContent;
+  try { await navigator.clipboard.writeText(text); e.target.textContent = "Copied"; }
+  catch { const r = document.createRange(); r.selectNodeContents(document.getElementById("cmd")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); e.target.textContent = "Select ⌘C"; }
+});
+document.getElementById("playHero").addEventListener("click", () => {
+  const f = document.createElement("iframe");
+  f.src = "{{HERO_GAME}}";
+  f.title = "{{HERO_TITLE}}, playable";
+  f.allow = "autoplay; fullscreen";
+  const stage = document.getElementById("hero");
+  stage.replaceChildren(f);
+});
+</script>
+</body>
+</html>

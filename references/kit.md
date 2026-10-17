@@ -76,6 +76,20 @@ playable({
 - `mem.forklift.drive(animator, point, liftY, dur)`, `.fall(animator, at, { depth = 1.4, tilt = 0.9 })`, `.home_(animator)`, `.reset()`: the dereference animation. Use a small `depth` (≈ 0.5) so the forklift stays visible nose-down in the pit.
 - `mem.addrOf(region, index)`, `mem.cellPos(region, index)`, `mem.redraw()`, `mem.refreshCables()`.
 
+### `parts/scope.mjs` (plots, measured data)
+- `benchScope(B, stage, { pos, rotY, width, height, res })` → `{ draw(spec), redraw(), screen, probes(), anchor(), screenAnchor() }`: a bench oscilloscope with a big phosphor canvas screen (nothing on it is orange). Redraw it at ≤ 20 Hz from `world.step`, and only when something changed: a 1024 px canvas upload every frame is expensive on phones.
+- `drawPlot(ctx, w, h, spec)` is the pure renderer (also usable for any canvas texture). `spec`: `x: [min, max]`, `y`, `xTicks`, `yTicks`, `unitX`, `yLabel`, `traces: [{ y, t0, dt | x, color, width, dash, dots, every, upto, label }]`, `hlines`, `vlines`, `bands: [{ x0, x1, y0, y1, color, hatch }]` (a spec window, hatched when violated), `cursor` (the beam dot), `readout: [text | { text, color }]`, `readoutAt` and `legendAt` (`"tl" | "tr" | "bl" | "br"`; put them in the corners the curve leaves empty), `font`. `SCOPE_COLORS` has the palette: model = phosphor line, measured data = ivory dots drawn last (so they sit on top), demand = signal-yellow dashed.
+
+### `parts/servo.mjs` (control labs)
+- `rotaryKnob(B, stage, { parent, pos, rot, radius, sweep })` → `{ grab, set(0…1), f, anchor() }`: an orange knob with a tick dial; grab meshes are kept out of dynamic merging (`userData.noMerge`), which you must do for any grabbable inside a `merge: true` group.
+- `servoWheel(B, stage, { parent, x, axisY, radius, ringRadius, dialOffset })` → `{ setAngle(θ), setTarget(θ, on), pointerTip(θ), rim(a), encoder(), anchor() }`: a flywheel with a pointer over a fixed dial in radians (θ CCW seen from +x, 0 = up), a signal-yellow demand marker and an encoder can. Build it in the motor's frame (shaft = local +x). Keep `axisY ≥ ringRadius + 0.35` so the dial clears the bench (raise the motor on a plinth: `motor.wrap.position.y`).
+- `frictionBrake(B, stage, { parent, x, axisY, radius, angle })` → `{ grab, set(0…1), padPoint(), anchor() }`: a felt pad on the rim with an orange thumbscrew (Coulomb friction as an object).
+- `controllerBox(B, stage, { pos, rotY, width, knobs: [{ id, label }] })` → `{ knobs: { id: rotaryKnob }, display(lines), labels(labels), ports(), switchSpot(dx), anchor() }`: a controller with a phosphor display strip and orange gain knobs. `display([{ k, v, dim }])` draws key/value columns.
+- To rotate a whole rig (e.g. a `dcMotor` so its shaft points at the camera), create the part, then `rigGroup.add(motor.wrap)`; static merging uses world matrices, so re-parenting before `build` returns is safe.
+
+### `scripts/lib/mat.mjs`
+`readMat(path)` → `{ header, vars }` reads MATLAB v5 MAT-files (numeric, char, struct, cell; compressed elements) with no dependencies. Use it in a data-prep script to turn lab `.mat` data into JSON the game and `truth.mjs` import.
+
 ## 5. Overlays, sound, interaction, physics, code
 
 - `overlays.mjs`: `currentFlow(stage, curve)` → `.update(current, dt, gain)`; `torqueArrow(stage, parent)` → `.set(torque, scale)`; `heatGlow(material)` → `(tempC) => …`; `heatMotes(stage, center)`; `fieldLoops(stage, parent)`.

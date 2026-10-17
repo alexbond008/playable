@@ -1,0 +1,68 @@
+{
+  "id": "rig-tuner",
+  "serial": "PLAYABLE-04",
+  "title": "Rig Tuner",
+  "subject": ["control", "dc-motors", "pi-control", "phase-advance", "nested-loops", "system-identification"],
+  "source": {
+    "title": "21WSB004 Control Systems Design · Coursework 2: Velocity and Position Control of a DC Motor (Loughborough University)",
+    "kind": "lab-folder",
+    "files": [
+      "21WSB004 Coursework 2 Info sheet - Motor Position Control V1.0(2).pdf (11 pages: tasks 1–4, motor parameters, design specs)",
+      "21WSB004 Submission Portfolio_complete.pdf/.docx (the student's answers, plots and tables)",
+      "start_MSD_SIM.m (K, J, R, L, D and the student's gains)",
+      "DCmodel_v1*.slx, DCmodel_PA_V2.slx, DClooploop.slx (plant from K, 1/L, 1/J, D, R gains and three integrators; PI, PA and nested-loop controllers)",
+      "RigData.mat (provided open-loop speed response), PI/, closed loop/, PA/ LabVIEW exports (the student's rig runs, 1 kHz)"
+    ],
+    "note": "No official answer sheet. The coursework's own numbers (motor parameters, specs, the student's controller gains) give derived cases; the measured rig data gives reality checks; the student's portfolio answers are claims."
+  },
+  "parameters": {
+    "script": { "K": 0.03, "J": 4.75e-5, "R": 2.7, "L": 0.082e-3, "D": 5.21e-6 },
+    "sheet": { "Kv": 0.030, "Kt": 0.030, "J": 4.73e-5, "R": 2.7, "L": 0.082e-3, "Kf": 5.21e-6 },
+    "gains": { "Kpi": 0.13, "tau_i": 0.10, "G": 20, "Kpa": 0.688, "tau_pa": 0.005, "k": 9 },
+    "rigModel": "Coursework model + the info sheet's ±10 V drive limit + Coulomb friction T_c = 1.7 mNm fitted on the open-loop run only (then tested on the closed-loop runs)."
+  },
+  "concepts": [
+    { "id": "plant-time-constant", "title": "The mechanical time constant JR/(K² + RD) sets the speed of response, not L/R", "anchor": "1.1–1.2" },
+    { "id": "model-validation", "title": "Overlay the model on measured data and measure the misfit (RMS)", "anchor": "1.2" },
+    { "id": "missing-friction", "title": "A steady-state gap means a missing static term (friction), not a wrong inertia", "anchor": "1.2" },
+    { "id": "pi-velocity", "title": "PI velocity control: Kp sets speed, τi removes the steady-state error", "anchor": "2.2–2.3" },
+    { "id": "saturation-windup", "title": "The ±10 V limit: linear margins can't see saturation and integral wind-up", "anchor": "2.2" },
+    { "id": "position-integrates", "title": "Position is the integral of speed: you must brake before you arrive", "anchor": "3, 4" },
+    { "id": "nested-bandwidth", "title": "Nested loops: outer loop ~5× slower than the inner loop", "anchor": "4.2" },
+    { "id": "phase-advance", "title": "Phase advance adds lead at the crossover frequency", "anchor": "3.2" },
+    { "id": "friction-dead-zone", "title": "Friction gives a proportional loop a dead zone; integral action removes it", "anchor": "3.3, 4.4" }
+  ],
+  "misconceptions": [
+    { "concept": "plant-time-constant", "text": "The motor responds in L/R = 30 µs because that is the electrical time constant." },
+    { "concept": "missing-friction", "text": "A heavier flywheel (bigger J) is why the rig settles at a lower speed." },
+    { "concept": "saturation-windup", "text": "A good phase margin guarantees a good step response on the real rig." },
+    { "concept": "pi-velocity", "text": "A PI loop leaves a steady-state error of a few rad/s (the portfolio's 2.5 and 2 rad/s)." },
+    { "concept": "nested-bandwidth", "text": "A higher outer gain is always better; the bandwidth rule is optional." },
+    { "concept": "friction-dead-zone", "text": "The PA stops short because it has low gain at low frequency (a linear loop with an integrating plant has zero steady-state error at any gain)." },
+    { "concept": "model-validation", "text": "Overshoot is measured from the axis you can see (the cropped plot), not from where the step started." }
+  ],
+  "claims": [
+    { "id": "1.2-overlay", "by": "student", "claim": "Output 1.2: the design model's 5 V step, overlaid on the rig data, matches it.", "verdict": "partly", "why": "The shape after the zero crossing matches (4.4 rad/s RMS with the student's 0.12 s shift), but RigData.mat is a −5 V → +5 V reversal starting at −157.5 rad/s, not a step from rest, and the model settles at 163.8 rad/s against the rig's 158.6. Coulomb friction of 1.7 mNm explains the gap (RMS 4.5 → 1.3 rad/s over the full reversal)." , "checkedBy": "truth.mjs · 1.2" },
+    { "id": "params-J", "by": "student", "claim": "start_MSD_SIM.m: J = 4.75×10⁻⁵ kg·m²", "verdict": "partly", "why": "The info sheet gives 4.73×10⁻⁵. A transcription slip: it moves the time constant from 139.7 ms to 140.3 ms (0.4 %), far below what the rig data can resolve.", "checkedBy": "lesson case 1.1J" },
+    { "id": "2.2b", "by": "student", "claim": "PI controller (0.13·0.1s + 0.13) / 0.1s", "verdict": "right", "why": "Kp(1 + 1/(τi·s)) with Kp = 0.13, τi = 0.1 s, exactly as in DCmodel_v1_with_PI_controller.slx and start_MSD_SIM.m. Phase margin 85°, crossover 31 rad/s, no phase crossover (infinite gain margin).", "checkedBy": "lesson case 2.2" },
+    { "id": "2.3b-model-OS", "by": "student", "claim": "Model overshoot 2.9 %", "verdict": "right", "why": "The linear model gives 2.9 %. With the info sheet's ±10 V limit (a ±75 rad/s reversal asks for 19.5 V) it would be 5.3 %.", "checkedBy": "lesson case 2.2 + truth.mjs · 2.3" },
+    { "id": "2.3b-meas-OS", "by": "student", "claim": "Measured overshoot 9 %", "verdict": "wrong", "why": "The rig run is a −75 → +75 rad/s reversal (a 150 rad/s step). The plot's y-limits hide the bottom half, so the overshoot was taken against 75 instead of 150: 8.9 % of 75, but 4.4 % of the real step.", "checkedBy": "truth.mjs · 2.3" },
+    { "id": "2.3b-ess", "by": "student", "claim": "Steady-state error 2.5 rad/s (model), 2 rad/s (measured)", "verdict": "wrong", "why": "Integral action drives the error to zero: the model's is 0.00 rad/s and the rig's mean error over its last 100 ms is under 0.1 rad/s. The ±1.5 rad/s you can see is encoder noise, not an offset.", "checkedBy": "lesson case 2.2 + truth.mjs · 2.3" },
+    { "id": "2.4", "by": "student", "claim": "The system's performance looks really good … acceptable overshoot", "verdict": "partly", "why": "It works, but the phase margin is 85° against a 60° target, a slower and safer design than asked for. The ±75 reversal saturates the 10 V drive (the Simulink model has no limit), and that saturation is why the rig overshoots more than the model.", "checkedBy": "lesson case 2.2" },
+    { "id": "3.2b", "by": "student", "claim": "PA controller (0.688·0.005·9 s + 0.688) / (0.005 s + 1), designed for ~60° phase margin", "verdict": "partly", "why": "It gives 55.4° of phase margin, close to the target. But the lead peaks (53°) at 1/(τ√k) = 66.7 rad/s while the loop crosses over at 12.7 rad/s, so only 26° of lead is used where it matters. K_PA would need to be about 5× higher to put the crossover on the lead's peak.", "checkedBy": "lesson case 3.2" },
+    { "id": "3.3b-model", "by": "student", "claim": "PA model: rise 0.11 s, overshoot 16 %, settling 2.17 s", "verdict": "partly", "why": "Rise 0.107 s and overshoot 16.4 % are right. 2.17 s is the clock time on the plot (the step is at 1.63 s); the settling time from the step is 0.56 s.", "checkedBy": "lesson case 3.2" },
+    { "id": "3.3-comment", "by": "student", "claim": "The rig data has an undershoot due to the nature of the PA controller which has a low gain at low frequency", "verdict": "partly", "why": "It is a steady-state error (the rig parks at 0.79 rad), not an undershoot. A linear loop around an integrating plant has zero steady-state error at any gain, so low gain alone can't do it. Friction can: 0.688 V/rad × 0.21 rad = 0.14 V is too little to unstick the motor. The friction measured in task 1.2 predicts a dead zone of ±0.22 rad, and the rig's 0.21 rad miss is inside it.", "checkedBy": "truth.mjs · 3.3" },
+    { "id": "4.2b", "by": "student", "claim": "Outer-loop gain G = 20", "verdict": "partly", "why": "It works on the rig (model vs rig 0.046 rad RMS, phase margin 58.6°), but it breaks the info sheet's rule of thumb: the outer loop's bandwidth (29.7 rad/s) is only 1.1× slower than the inner loop's (33.7 rad/s), not 5×. G ≈ 5.5 meets the rule.", "checkedBy": "lesson case 4.2" },
+    { "id": "4.3b-settle", "by": "student", "claim": "Settling time 1.322 s (model and measured)", "verdict": "wrong", "why": "1.322 s is the clock time on the plot (the step is at 1.0 s). From the step, the model settles (±2 %) in 0.22 s and the rig in 0.33 s.", "checkedBy": "truth.mjs · 4.3" },
+    { "id": "4.3b-OS", "by": "student", "claim": "Overshoot 9 % (model), 11 % (measured)", "verdict": "partly", "why": "The model's 9 % is right (9.3 %). The rig's 11 % has the same cropped-plot error as task 2: the run is a −1 → +1 rad reversal, and the peak is 10.7 % of 1 rad but 5.3 % of the real 2 rad step.", "checkedBy": "truth.mjs · 4.3" },
+    { "id": "4.4", "by": "student", "claim": "The nested loop is more robust than the PA … seen in the stability of the two systems", "verdict": "partly", "why": "Their stability margins are almost equal (58.6° vs 55.4°). The rig shows the real difference: the nested loop's integrator pushes through friction to exactly 1.000 rad, while the PA parks 0.21 rad short.", "checkedBy": "truth.mjs · 3.3, 4.3" }
+  ],
+  "cases": [
+    { "id": "1.1", "solver": "plant", "trust": "derived", "given": { "K": 0.03, "J": 4.75e-5, "R": 2.7, "L": 0.082e-3, "D": 5.21e-6, "V": 5 }, "expect": { "gain": "32.82", "wss": "164.1", "tauM_ms": "140.3", "tauE_us": "30.4", "ideal": "166.7" }, "note": "Steady state: ω = K·V / (K² + R·D). Time constant: J·R / (K² + R·D). The electrical L/R is 4600× faster." },
+    { "id": "1.1J", "solver": "plant", "trust": "derived", "given": { "K": 0.03, "J": 4.73e-5, "R": 2.7, "L": 0.082e-3, "D": 5.21e-6, "V": 5 }, "expect": { "tauM_ms": "139.7", "wss": "164.1" }, "note": "The info sheet's J (4.73e-5) instead of the script's 4.75e-5." },
+    { "id": "2.2", "solver": "piLoop", "trust": "derived", "given": { "Kpi": 0.13, "tau_i": 0.1, "step": 75 }, "expect": { "pm": "85.0", "wc": "31.2", "ess": "0.00", "overshoot": "2.9", "u0": "9.75" } },
+    { "id": "3.2", "solver": "paLoop", "trust": "derived", "given": { "Kpa": 0.688, "tau_pa": 0.005, "k": 9, "step": 1 }, "expect": { "pm": "55.4", "wc": "12.7", "phiMax": "53.1", "wMax": "66.7", "overshoot": "16.4", "ess": "0.000", "settle": "0.56" } },
+    { "id": "4.2", "solver": "nestedLoop", "trust": "derived", "given": { "Kpi": 0.13, "tau_i": 0.1, "G": 20, "step": 1 }, "expect": { "innerBw": "33.7", "outerBw": "29.7", "ratio": "1.1", "pm": "58.6", "overshoot": "9.3", "settle": "0.22" } },
+    { "id": "4.2rule", "solver": "nestedLoop", "trust": "derived", "given": { "Kpi": 0.13, "tau_i": 0.1, "G": 5.5, "step": 1 }, "expect": { "ratio": "5.1", "overshoot": "0.0" }, "note": "The gain that meets the info sheet's 5× bandwidth rule." }
+  ]
+}

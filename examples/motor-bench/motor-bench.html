@@ -87427,6 +87427,11 @@ async function playable(def) {
         else c.t = Math.max(c.t, r.bottom + 8);
       } else if (r.left > W * 0.45) c.r = Math.min(c.r, r.left - 8);
     }
+    // opt-in: keep the focus box below a full-width readout block (phones), so the readouts never cover the subject
+    if (def.camera?.avoidReadouts) {
+      const r = readouts.getBoundingClientRect();
+      if ((r.width > W * 0.6 || W < 760) && r.bottom < H * 0.45) c.t = Math.max(c.t, r.bottom + 4);
+    }
     return c;
   }
   let focusQueued = false;

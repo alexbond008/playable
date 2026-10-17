@@ -1,0 +1,665 @@
+<title>Playable Style Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Doto:wght@700;900&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: full-bleed 3D bench diorama; HUD floats over it — readouts top-left, controls dock right (desktop) / bottom sheet (phone). */
+:root{
+  color-scheme: dark;
+  --bg:#0E0F10; --panel:#16171A; --panel-2:#1F2024; --line:#2C2E33;
+  --ink:#ECE7DC; --mute:#8D8F96; --accent:#FF5A1F; --phosphor:#3CFF8F;
+  --current:#56B4E9; --volt:#0072B2; --force:#009E73; --heat:#E69F00; --field:#CC79A7; --signal:#F0E442; --error:#D55E00;
+  --f-ui:"IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Menlo, monospace;
+  --f-dot:"Doto", "JetBrains Mono", ui-monospace, monospace;
+}
+body[data-look="cyanotype"]{ --bg:#0B2A4A; --panel:#0F3157; --panel-2:#143A66; --line:#2A5A8C; --ink:#F4F1E6; --mute:#9DB6D3; }
+body[data-look="paper"]{ color-scheme: light; --bg:#ECE8E0; --panel:#F7F5F0; --panel-2:#E4DFD5; --line:#CFC8BA; --ink:#1E1F22; --mute:#6C6A64; --phosphor:#0E8F4A; }
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14px;margin:0;transition:background .4s}
+#stage{position:fixed;inset:0}
+#stage canvas{display:block;width:100%;height:100%;touch-action:none}
+#hud{position:fixed;inset:0;pointer-events:none;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:max(14px,env(safe-area-inset-top,0px)) max(14px,env(safe-area-inset-bottom,0px))}
+#hud > *{pointer-events:auto}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand b{font-family:var(--f-dot);font-weight:900;font-size:22px;letter-spacing:.04em;color:var(--accent)}
+.brand span{font-family:var(--f-mono);font-size:11px;color:var(--mute);letter-spacing:.08em;text-transform:uppercase}
+#readouts{position:absolute;top:max(14px,env(safe-area-inset-top,0px));left:max(16px,env(safe-area-inset-left,0px));display:grid;gap:8px;pointer-events:none}
+.big{display:flex;align-items:baseline;gap:8px}
+.big .num{font-family:var(--f-dot);font-weight:900;font-size:clamp(40px,7vw,64px);line-height:.9;color:var(--phosphor);font-variant-numeric:tabular-nums;text-shadow:0 0 18px color-mix(in srgb,var(--phosphor) 35%,transparent)}
+.big .unit{font-family:var(--f-mono);color:var(--mute);font-size:12px;letter-spacing:.1em}
+.minis{display:grid;grid-template-columns:repeat(4,auto);gap:4px 14px;font-family:var(--f-mono);font-size:12px;font-variant-numeric:tabular-nums}
+.minis i{font-style:normal;color:var(--mute);font-size:10px;letter-spacing:.1em;display:block}
+.minis em{font-style:normal;font-family:var(--f-dot);font-weight:700;font-size:20px;color:var(--ink)}
+#mission{margin-top:4px;max-width:330px;font-size:13px;line-height:1.35;color:var(--ink);background:color-mix(in srgb,var(--panel) 82%,transparent);border:1px solid var(--line);border-radius:10px;padding:8px 10px;pointer-events:auto}
+#mission .q{font-family:var(--f-mono);font-size:10px;color:var(--mute);letter-spacing:.1em;text-transform:uppercase}
+#mission .ok{color:var(--phosphor);font-family:var(--f-mono);font-weight:500}
+#panel{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:max(14px,env(safe-area-inset-top,0px));bottom:max(14px,env(safe-area-inset-bottom,0px));width:300px;display:flex;flex-direction:column;gap:12px;background:color-mix(in srgb,var(--panel) 90%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:14px;padding:14px;overflow:auto}
+.sec{display:grid;gap:7px}
+.sec h3{margin:0;font-family:var(--f-mono);font-weight:500;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:3px;gap:3px}
+.seg button{all:unset;cursor:pointer;text-align:center;padding:7px 4px;border-radius:6px;font-size:13px;font-weight:500;color:var(--mute)}
+.seg button[aria-pressed="true"]{background:var(--bg);color:var(--ink);box-shadow:0 0 0 1px var(--line)}
+.seg button:focus-visible,.tog:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ctl{display:grid;grid-template-columns:1fr auto;align-items:center;gap:4px 8px}
+.ctl label{font-size:13px}
+.ctl output{font-family:var(--f-mono);font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums}
+.ctl input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--accent)}
+.row{display:flex;gap:6px;flex-wrap:wrap}
+.tog{all:unset;cursor:pointer;font-size:13px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel-2);color:var(--mute)}
+.tog[aria-pressed="true"]{color:var(--ink);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.tog.hot{background:var(--accent);color:#16110D;border-color:var(--accent);font-weight:600}
+select{font:inherit;font-size:13px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.legend{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;font-size:12px;color:var(--mute)}
+.legend span{display:inline-block;width:18px;height:6px;border-radius:3px;margin-top:5px}
+.note{font-size:11.5px;color:var(--mute);line-height:1.4}
+#perf{position:absolute;left:max(16px,env(safe-area-inset-left,0px));bottom:max(14px,env(safe-area-inset-bottom,0px));font-family:var(--f-mono);font-size:10.5px;color:var(--mute);font-variant-numeric:tabular-nums;pointer-events:none}
+#badge{position:absolute;left:50%;top:max(16px,env(safe-area-inset-top,0px));transform:translateX(-50%);font-family:var(--f-mono);font-size:11px;letter-spacing:.14em;color:var(--bg);background:var(--signal);padding:4px 9px;border-radius:5px;pointer-events:none}
+.tag{position:absolute;left:0;top:0;pointer-events:none;font-family:var(--f-mono);font-size:11px;color:var(--ink);background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);border-radius:6px;padding:3px 7px;white-space:nowrap;transform:translate(-50%,-130%);transition:opacity .3s}
+.tag::after{content:"";position:absolute;left:50%;top:100%;width:1px;height:14px;background:var(--mute)}
+#hint{border-color:var(--accent);color:var(--accent)}
+#eq{position:absolute;left:0;top:0;pointer-events:none;transform:translate(-50%,-115%);background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:6px;min-width:250px;transition:opacity .35s}
+#eq .src{font-family:var(--f-mono);font-size:10px;letter-spacing:.1em;color:var(--mute);text-transform:uppercase}
+#eq .f{font-family:var(--f-mono);font-size:15px}
+#eq .f b{color:var(--accent);font-weight:500}
+#eq .live{font-family:var(--f-mono);font-size:12px;color:var(--mute);font-variant-numeric:tabular-nums}
+#eq svg{width:100%;height:auto}
+#sheetToggle{display:none}
+@media (max-width: 760px){
+  #panel{top:auto;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));width:auto;max-height:46%;bottom:max(10px,env(safe-area-inset-bottom,0px))}
+  #panel.closed{max-height:52px;overflow:hidden}
+  #sheetToggle{display:block}
+  #readouts{max-width:calc(100% - 32px)}
+  #mission{max-width:100%}
+  #perf{bottom:auto;top:max(14px,env(safe-area-inset-top,0px));left:auto;right:max(16px,env(safe-area-inset-right,0px))}
+  .minis{grid-template-columns:repeat(4,auto)}
+}
+@media (prefers-reduced-motion: reduce){ *{transition:none!important} }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="cvd-deut"><feColorMatrix type="matrix" values="0.367 0.861 -0.228 0 0  0.280 0.673 0.047 0 0  -0.012 0.043 0.969 0 0  0 0 0 1 0"/></filter>
+  <filter id="cvd-prot"><feColorMatrix type="matrix" values="0.152 1.053 -0.205 0 0  0.115 0.786 0.099 0 0  -0.004 -0.048 1.052 0 0  0 0 0 1 0"/></filter>
+  <filter id="cvd-trit"><feColorMatrix type="matrix" values="1.256 -0.077 -0.179 0 0  -0.078 0.931 0.148 0 0  0.005 0.691 0.304 0 0  0 0 0 1 0"/></filter>
+</svg>
+
+<div id="stage"></div>
+
+<div id="hud">
+  <div id="readouts">
+    <div class="brand"><b>PLAYABLE</b><span>Style lab · 01 Motor bench</span></div>
+    <div class="big"><span class="num" id="rpm">0</span><span class="unit">RPM</span></div>
+    <div class="minis">
+      <div><i>SUPPLY</i><em id="rV">0.0</em> V</div>
+      <div><i>CURRENT</i><em id="rI">0.0</em> A</div>
+      <div><i>TORQUE</i><em id="rT">0.00</em> Nm</div>
+      <div><i>η</i><em id="rE">—</em></div>
+    </div>
+    <div id="mission">
+      <div class="q">Tutorial 1.1 · Q3</div>
+      Set the load to <b>3 Nm</b>, then find the supply voltage that spins the motor at <b>2000 rpm</b>.
+      <div id="check" class="note">Target: 2000 ± 20 rpm at 3.0 Nm</div>
+    </div>
+  </div>
+
+  <div id="badge" hidden>REVEAL · SLOW ×0.25</div>
+  <div class="tag" id="hint">Drag the orange knob</div>
+  <div class="tag" id="tagArm">Armature · K = 0.2 V·s/rad</div>
+  <div class="tag" id="tagRes">Brake resistor · 2.52 Ω</div>
+  <div class="tag" id="tagPsu">Bench supply · 0–60 V</div>
+  <div id="eq">
+    <div class="src">Unlocked · Tutorial 1.1, Q3</div>
+    <svg viewBox="0 0 260 64" aria-label="Motor equivalent circuit: supply V, armature resistance R_A, back EMF E">
+      <g fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M10 50 V14 H60"/>
+        <path d="M60 14 l6 -6 l8 12 l8 -12 l8 12 l8 -12 l6 6 H150"/>
+        <circle cx="175" cy="32" r="18"/>
+        <path d="M150 14 H175 V14"/><path d="M175 14 V14"/>
+        <path d="M193 32 H250 V50 H10"/>
+        <path d="M157 32 H175" stroke-dasharray="3 3"/>
+      </g>
+      <text x="14" y="34" font-family="JetBrains Mono, monospace" font-size="11" fill="currentColor">V</text>
+      <text x="76" y="34" font-family="JetBrains Mono, monospace" font-size="11" fill="currentColor">R_A</text>
+      <text x="169" y="36" font-family="Doto, monospace" font-weight="900" font-size="14" fill="currentColor">M</text>
+      <text x="200" y="26" font-family="JetBrains Mono, monospace" font-size="11" fill="currentColor">E = Kω</text>
+    </svg>
+    <div class="f">V = <b>K·ω</b> + I·R<sub>A</sub></div>
+    <div class="live" id="eqLive">—</div>
+    <div class="f" style="font-size:13px">T = K·I</div>
+  </div>
+
+  <div id="perf">— fps</div>
+
+  <aside id="panel" aria-label="Style lab controls">
+    <button class="tog" id="sheetToggle" aria-expanded="true">Controls</button>
+    <div class="sec">
+      <h3>Moment</h3>
+      <div class="seg" id="mode">
+        <button aria-pressed="true" data-v="play">Play</button>
+        <button aria-pressed="false" data-v="reveal">Reveal</button>
+      </div>
+    </div>
+    <div class="sec">
+      <h3>Look</h3>
+      <div class="seg" id="look">
+        <button aria-pressed="true" data-v="bench">Bench</button>
+        <button aria-pressed="false" data-v="cyanotype">Cyanotype</button>
+        <button aria-pressed="false" data-v="paper">Paper</button>
+      </div>
+    </div>
+    <div class="sec">
+      <h3>Controls (also on the bench)</h3>
+      <div class="ctl"><label for="sV">Supply voltage</label><output id="oV">20.0 V</output><input id="sV" type="range" min="0" max="60" step="0.5" value="20"></div>
+      <div class="ctl"><label for="sL">Dyno load</label><output id="oL">1.0 Nm</output><input id="sL" type="range" min="0" max="5" step="0.5" value="1"></div>
+      <div class="row">
+        <button class="tog" id="brake" aria-pressed="false">Brake into 2.52 Ω</button>
+        <button class="tog hot" id="sound" aria-pressed="false">Sound on</button>
+      </div>
+    </div>
+    <div class="sec">
+      <h3>Inspect</h3>
+      <div class="row">
+        <button class="tog" id="cut" aria-pressed="false">Cutaway</button>
+        <button class="tog" id="bloom" aria-pressed="true">Glow</button>
+        <button class="tog" id="edges" aria-pressed="true">Edge lines</button>
+      </div>
+      <div class="ctl"><label for="cvd">Colour vision</label><select id="cvd"><option value="">Typical</option><option value="deut">Deuteranopia</option><option value="prot">Protanopia</option><option value="trit">Tritanopia</option></select></div>
+    </div>
+    <div class="sec">
+      <h3>Physics colours</h3>
+      <div class="legend">
+        <span style="background:var(--current)"></span>Current · moving particles
+        <span style="background:var(--force)"></span>Torque · arrow length
+        <span style="background:var(--heat)"></span>Heat · incandescent glow
+        <span style="background:var(--field)"></span>Magnetic field · dashed loops
+        <span style="background:var(--accent)"></span>Things you can grab
+      </div>
+      <p class="note">Keys: R reveal · 1 2 3 looks · C cutaway · B brake · ↑↓ voltage.</p>
+      <p class="note">Motor constants come from Tutorial 1.1 Q3 and Q5: K = 0.2, R<sub>A</sub> = 0.1 Ω, brake resistor 2.52 Ω. Rotation is drawn at 1/30 of real speed so the spokes stay readable.</p>
+    </div>
+  </aside>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+/* ---------------- motor model (Tutorial 1.1) ---------------- */
+const P = { K:0.2, R:0.1, Rb:2.52, J:0.02, B:0.0004 };
+const S = { V:20, load:1, brake:false, w:0, I:0, T:0, tempC:25, Pb:0 };
+const MOBILE = matchMedia('(max-width: 760px)').matches || /Mobi|Android/i.test(navigator.userAgent);
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function stepModel(dt){
+  const n = 8, h = dt/n;
+  for(let k=0;k<n;k++){
+    const E = P.K*S.w;
+    S.I = S.brake ? -E/(P.R+P.Rb) : (S.V - E)/P.R;
+    S.T = P.K*S.I;
+    const Tl = S.load*Math.tanh(S.w/2);
+    S.w += h*(S.T - Tl - P.B*S.w)/P.J;
+    if (S.w < 0 && S.V < 0.01) S.w = Math.max(S.w, 0);
+  }
+  S.Pb = S.brake ? S.I*S.I*P.Rb : 0;
+  S.tempC += dt*(S.Pb*3.2 - (S.tempC-25)*0.28);
+}
+
+/* ---------------- renderer / scene ---------------- */
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, MOBILE?1.5:2));
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.toneMappingExposure = 0.95;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.localClippingEnabled = true;
+renderer.info.autoReset = false;
+stage.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 200);
+camera.position.set(7.5, 7.2, 12.5);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0.6, 1.1, 0);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.minDistance = 6; controls.maxDistance = 24;
+controls.minPolarAngle = 0.35; controls.maxPolarAngle = 1.38;
+controls.minAzimuthAngle = -1.2; controls.maxAzimuthAngle = 1.3;
+controls.enablePan = false;
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.55;
+
+const key = new THREE.DirectionalLight(0xffe7cf, 1.5);
+key.position.set(6, 11, 7); key.castShadow = true;
+key.shadow.mapSize.set(MOBILE?1024:2048, MOBILE?1024:2048);
+Object.assign(key.shadow.camera, { left:-9, right:9, top:7, bottom:-7, near:1, far:40 });
+key.shadow.bias = -0.0004; key.shadow.normalBias = 0.02; key.shadow.radius = 4;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0xbcd2ff, 0.6); rim.position.set(-7, 5, -8); scene.add(rim);
+const hemi = new THREE.HemisphereLight(0xdfe6ff, 0x101010, 0.25); scene.add(hemi);
+
+/* ---------------- materials (role-based so themes can swap) ---------------- */
+const std = (c, r=0.75, m=0, extra={}) => new THREE.MeshStandardMaterial({ color:c, roughness:r, metalness:m, ...extra });
+const cutPlane = new THREE.Plane(new THREE.Vector3(0,0,-1), 0);
+const MAT = {
+  bench: std(0x1b1c1f, 0.85), graphite: std(0x24262a, 0.8), housing: std(0x3a3d44, 0.55, 0.15),
+  housingCut: std(0x3a3d44, 0.55, 0.15, { side:THREE.DoubleSide }), clay: std(0xc9ccd1, 0.7), clayCut: std(0xc9ccd1, 0.7, 0, {}),
+  steel: std(0xa9adb5, 0.38, 0.9), brass: std(0xc99a4b, 0.35, 0.85), copper: std(0xb06a3c, 0.4, 0.8),
+  rubber: std(0x111214, 0.95), carbon: std(0x2b2b2e, 0.9), magnet: std(0x5b5f68, 0.5, 0.3), ceramic: std(0xe6e1d6, 0.6),
+  insRed: std(0x7e3434, 0.6), insDark: std(0x1a1a1c, 0.6), hole: std(0x070708, 1),
+  accent: std(0xff5a1f, 0.45, 0, { emissive:0xff5a1f, emissiveIntensity:0.0 }),
+  ink: new THREE.MeshBasicMaterial({ color:0xece7dc })
+};
+const THEMES = {
+  bench:     { bg:0x0e0f10, bench:0x151618, graphite:0x1d1f22, housing:0x34373d, clay:0xb4b7bd, ceramic:0xd9d4c8, edge:0x050506, edgeOp:0.6, env:0.32, key:1.5, hemi:0.12, bloom:0.7, exp:0.95, thr:1.05 },
+  cyanotype: { bg:0x0b2a4a, bench:0x0f3358, graphite:0x133b64, housing:0x245282, clay:0xd8d3c4, ceramic:0xd8d3c4, edge:0xf4f1e6, edgeOp:0.85, env:0.3,  key:1.4, hemi:0.25, bloom:0.6, exp:0.95, thr:1.05 },
+  paper:     { bg:0xece8e0, bench:0xcfc9bd, graphite:0xc2bbae, housing:0x5a5e66, clay:0xe9e6df, ceramic:0xeeeae2, edge:0x2a2c30, edgeOp:0.55, env:0.5,  key:1.5, hemi:0.35, bloom:0.35, exp:0.82, thr:1.6 }
+};
+const edgeMat = new THREE.LineBasicMaterial({ color:0x050506, transparent:true, opacity:0.55 });
+const edgeMatCut = new THREE.LineBasicMaterial({ color:0x050506, transparent:true, opacity:0.55, clippingPlanes:[] });
+const clippables = [MAT.housingCut, MAT.clayCut, edgeMatCut];
+
+/* ---------------- geometry helpers ---------------- */
+const all = new THREE.Group(); scene.add(all);
+const edgeLines = [];
+function mesh(geo, mat, parent=all, opts={}){
+  const m = new THREE.Mesh(geo, mat);
+  m.castShadow = opts.cast ?? true; m.receiveShadow = opts.recv ?? true;
+  if (opts.pos) m.position.set(...opts.pos);
+  if (opts.rot) m.rotation.set(...opts.rot);
+  parent.add(m);
+  if (opts.edges !== false){
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo, opts.thresh ?? 30), opts.cutEdges ? edgeMatCut : edgeMat);
+    e.raycast = () => {}; m.add(e); edgeLines.push(e);
+  }
+  return m;
+}
+const rbox = (w,h,d,r=0.06,s=3) => new RoundedBoxGeometry(w,h,d,s,Math.min(r, Math.min(w,h,d)/2.2));
+function lathe(profile, seg=48){ return new THREE.LatheGeometry(profile.map(([r,y])=>new THREE.Vector2(r,y)), seg); }
+function chamferCyl(r, h, c=0.04, seg=48){ return lathe([[0,-h/2],[r-c,-h/2],[r,-h/2+c],[r,h/2-c],[r-c,h/2],[0,h/2]], seg); }
+const toX = g => g.rotateZ(-Math.PI/2);
+const toZ = g => g.rotateX(Math.PI/2);
+function instanced(geo, mat, mats, parent=all, colors){
+  const im = new THREE.InstancedMesh(geo, mat, mats.length);
+  mats.forEach((m,i)=>{ im.setMatrixAt(i,m); if(colors) im.setColorAt(i, colors[i]); });
+  im.castShadow = true; im.receiveShadow = true; parent.add(im); return im;
+}
+const M4 = (x,y,z, rx=0,ry=0,rz=0, s=1) => new THREE.Matrix4().compose(new THREE.Vector3(x,y,z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx,ry,rz)), new THREE.Vector3(s,s,s));
+function canvasTex(w,h,draw){ const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d'); draw(g,w,h); const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4; return {tex:t, ctx:g, canvas:c}; }
+
+/* ---------------- floor shadow + bench ---------------- */
+const shadowTex = canvasTex(256,256,(g,w,h)=>{ const gr=g.createRadialGradient(w/2,h/2,10,w/2,h/2,w/2); gr.addColorStop(0,'rgba(0,0,0,.55)'); gr.addColorStop(1,'rgba(0,0,0,0)'); g.fillStyle=gr; g.fillRect(0,0,w,h); }).tex;
+const floorShadow = new THREE.Mesh(new THREE.PlaneGeometry(26,18), new THREE.MeshBasicMaterial({ map:shadowTex, transparent:true, depthWrite:false }));
+floorShadow.rotation.x = -Math.PI/2; floorShadow.position.y = -1.05; scene.add(floorShadow);
+
+mesh(rbox(14,0.6,8.4,0.12,4), MAT.bench, all, { pos:[0,-0.3,0] });
+// bench frame rails + feet
+for (const z of [-3.9, 3.9]) mesh(rbox(13.6,0.22,0.3,0.05), MAT.graphite, all, { pos:[0,-0.72,z] });
+for (const x of [-6.4,6.4]) for (const z of [-3.6,3.6]) mesh(chamferCyl(0.22,0.28,0.05,24), MAT.rubber, all, { pos:[x,-0.86,z] });
+// ruler strip with instanced ticks along the front edge
+mesh(rbox(12,0.03,0.5,0.01), MAT.graphite, all, { pos:[0,0.015,3.75], edges:true });
+{ const mats=[]; for(let i=0;i<=96;i++){ const x=-5.9+i*0.125; const L = i%8===0?0.3: i%4===0?0.2:0.12; mats.push(M4(x,0.035,3.53+L/2,0,0,0)); mats[mats.length-1].scale(new THREE.Vector3(1,1,L/0.3)); }
+  instanced(new THREE.BoxGeometry(0.018,0.01,0.3), MAT.ink, mats).castShadow=false; }
+// corner screws (slotted)
+{ const mats=[]; for (const x of [-6.6,6.6]) for (const z of [-3.85,3.85]) mats.push(M4(x,0.01,z));
+  instanced(chamferCyl(0.12,0.05,0.02,20), MAT.steel, mats);
+  instanced(new THREE.BoxGeometry(0.2,0.02,0.03), MAT.hole, mats.map(m=>m.clone().multiply(M4(0,0.03,0)))); }
+// pegboard backdrop
+mesh(rbox(14,5.2,0.2,0.06), MAT.graphite, all, { pos:[0,2.3,-4.35] });
+{ const mats=[]; for(let i=0;i<27;i++) for(let j=0;j<9;j++) mats.push(M4(-6.5+i*0.5, 0.2+j*0.5, -4.24, Math.PI/2,0,0));
+  instanced(new THREE.CylinderGeometry(0.05,0.05,0.02,10), MAT.hole, mats).castShadow=false; }
+
+/* ---------------- serial plate ---------------- */
+let fontsReady = false;
+const plate = canvasTex(1024,256,()=>{});
+function drawPlate(){ const g=plate.ctx, {width:w,height:h}=plate.canvas; g.clearRect(0,0,w,h); g.fillStyle='#c99a4b'; g.fillRect(0,0,w,h);
+  g.strokeStyle='rgba(60,40,10,.6)'; g.lineWidth=6; g.strokeRect(14,14,w-28,h-28);
+  g.fillStyle='#3b2a12'; g.font='900 112px Doto, monospace'; g.textBaseline='middle'; g.fillText('PLAYABLE-01',48,108);
+  g.font='500 34px "JetBrains Mono", monospace'; g.fillText('MOTOR BENCH · TUTORIAL 1.1 · K=0.2 R=0.1Ω',52,200);
+  for (const x of [34,w-34]) for (const y of [34,h-34]){ g.beginPath(); g.arc(x,y,9,0,7); g.fill(); }
+  plate.tex.needsUpdate=true; }
+drawPlate();
+mesh(rbox(2.4,0.05,0.6,0.02), new THREE.MeshStandardMaterial({ map:plate.tex, roughness:0.4, metalness:0.7 }), all, { pos:[-4.8,0.03,2.95] });
+
+/* ---------------- motor ---------------- */
+const motor = new THREE.Group(); motor.position.set(-2.1, 1.45, 0); all.add(motor);
+const RH = 1.0, LH = 2.4;
+// housing shell (clipped in cutaway), cooling rings, end caps, tie rods
+mesh(toX(new THREE.CylinderGeometry(RH,RH,LH,64,1,true)), MAT.housingCut, motor, { cutEdges:true });
+{ const mats=[]; for(let i=0;i<11;i++) mats.push(M4(-1.0+i*0.2,0,0,0,0,-Math.PI/2));
+  const fins = instanced(new THREE.CylinderGeometry(RH+0.08,RH+0.08,0.06,64,1,true), MAT.housingCut, mats, motor); fins.material = MAT.housingCut; }
+for (const s of [-1,1]){
+  const cap = lathe([[0,-0.14],[1.1,-0.14],[1.16,-0.08],[1.16,0.06],[0.5,0.12],[0.42,0.24],[0,0.24]].map(([r,y])=>[r,y*s]), 64);
+  mesh(toX(cap), MAT.clayCut, motor, { pos:[s*(LH/2+0.1),0,0], cutEdges:true });
+}
+{ const mats=[]; for(let k=0;k<4;k++){ const a=Math.PI/4+k*Math.PI/2; mats.push(M4(0,Math.cos(a)*1.1,Math.sin(a)*1.1,0,0,-Math.PI/2)); }
+  instanced(new THREE.CylinderGeometry(0.035,0.035,LH+0.7,10), MAT.steel, mats, motor);
+  const nuts=[]; for(const m of mats) for(const s of [-1,1]) nuts.push(m.clone().multiply(M4(0,s*(LH/2+0.33),0)));
+  instanced(new THREE.CylinderGeometry(0.075,0.075,0.07,6), MAT.steel, nuts, motor); }
+// cradle + saddles + hold-down bolts
+mesh(rbox(2.6,0.36,1.7,0.06), MAT.graphite, all, { pos:[-2.1,0.18,0] });
+for (const x of [-0.75,0.75]) mesh(rbox(0.32,0.9,1.5,0.05), MAT.graphite, motor, { pos:[x,-0.85,0] });
+{ const mats=[]; for(const x of [-1.15,1.15]) for(const z of [-0.65,0.65]) mats.push(M4(-2.1+x,0.4,z));
+  instanced(new THREE.CylinderGeometry(0.08,0.08,0.07,6), MAT.steel, mats); }
+// terminal box
+const tbox = mesh(rbox(0.9,0.42,0.75,0.06), MAT.clay, motor, { pos:[-0.3,RH+0.18,0] });
+const termPos = [new THREE.Vector3(-0.3-0.22, RH+0.52, 0.12), new THREE.Vector3(-0.3+0.22, RH+0.52, 0.12)];
+termPos.forEach((p,i)=>{ mesh(chamferCyl(0.07,0.16,0.02,16), MAT.brass, motor, { pos:[p.x,p.y-0.04,p.z] }); mesh(chamferCyl(0.1,0.08,0.03,16), i?MAT.insDark:MAT.insRed, motor, { pos:[p.x,p.y+0.06,p.z] }); });
+
+// rotating internals
+const rotor = new THREE.Group(); motor.add(rotor);
+{ const mats=[], cols=[]; for(let i=0;i<34;i++){ mats.push(M4(-0.95+i*0.056,0,0,0,0,-Math.PI/2)); cols.push(new THREE.Color(i%2?0x7b8089:0x9aa0aa)); }
+  instanced(new THREE.CylinderGeometry(0.64,0.64,0.045,40), std(0xffffff,0.5,0.6), mats, rotor, cols); }
+{ const mats=[]; for(let k=0;k<12;k++){ const a=k*Math.PI/6; mats.push(M4(0,Math.cos(a)*0.6,Math.sin(a)*0.6, a,0,0)); }
+  instanced(new THREE.BoxGeometry(1.95,0.13,0.13), MAT.copper, mats, rotor); }
+for (const s of [-1,1]) mesh(new THREE.TorusGeometry(0.56,0.1,12,40).rotateY(Math.PI/2), MAT.copper, rotor, { pos:[s*1.02,0,0], edges:false });
+mesh(toX(chamferCyl(0.34,0.36,0.03,36)), MAT.carbon, rotor, { pos:[-1.27,0,0], edges:false });
+{ const mats=[]; for(let k=0;k<12;k++){ const a=k*Math.PI/6; mats.push(M4(-1.27,Math.cos(a)*0.34,Math.sin(a)*0.34, a,0,0)); }
+  instanced(new THREE.BoxGeometry(0.34,0.03,0.15), MAT.brass, mats, rotor); }
+mesh(toX(new THREE.CylinderGeometry(0.1,0.1,5.2,24)), MAT.steel, rotor, { pos:[1.25,0,0] });
+// stator magnets + brushes (static)
+for (const a of [0, Math.PI]) mesh(toX(new THREE.CylinderGeometry(0.92,0.92,1.9,40,1,true, a+Math.PI*0.2, Math.PI*0.6)), std(0x5b5f68,0.5,0.3,{side:THREE.DoubleSide}), motor, {});
+for (const s of [-1,1]){
+  mesh(rbox(0.16,0.3,0.2,0.03), MAT.carbon, motor, { pos:[-1.27, s*0.52, 0] });
+  mesh(rbox(0.28,0.22,0.3,0.03), MAT.brass, motor, { pos:[-1.27, s*0.78, 0] });
+}
+// magnetic field loops (dashed)
+const fieldLines = new THREE.Group(); motor.add(fieldLines);
+const fieldMat = new THREE.LineDashedMaterial({ color:0xcc79a7, dashSize:0.08, gapSize:0.06, transparent:true, opacity:0.95 });
+for (const x of [-0.6,0,0.6]) for (const k of [0.45,0.7]){
+  const pts=[]; for(let i=0;i<=64;i++){ const t=i/64*Math.PI*2; pts.push(new THREE.Vector3(x, Math.sin(t)*0.95, Math.cos(t)*k)); }
+  const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), fieldMat); l.computeLineDistances(); fieldLines.add(l); }
+
+/* ---------------- coupling + dyno ---------------- */
+const spin = new THREE.Group(); spin.position.set(-2.1,1.45,0); all.add(spin);
+mesh(toX(chamferCyl(0.3,0.32,0.04,32)), MAT.steel, spin, { pos:[3.55,0,0] });
+mesh(toX(chamferCyl(0.3,0.32,0.04,32)), MAT.steel, spin, { pos:[3.95,0,0] });
+mesh(toX(new THREE.CylinderGeometry(0.27,0.27,0.08,24)), MAT.rubber, spin, { pos:[3.75,0,0], edges:false });
+const flywheel = mesh(toX(lathe([[0.12,-0.16],[1.1,-0.16],[1.18,-0.1],[1.18,0.1],[1.1,0.16],[0.4,0.16],[0.32,0.24],[0.12,0.24]], 80)), MAT.clay, spin, { pos:[4.9,0,0] });
+{ const mats=[]; for(let k=0;k<6;k++){ const a=k*Math.PI/3; mats.push(M4(4.9+0.17,Math.cos(a)*0.72,Math.sin(a)*0.72,0,0,-Math.PI/2)); }
+  instanced(new THREE.CylinderGeometry(0.17,0.17,0.02,24), MAT.hole, mats, spin);
+  const t=[]; for(let k=0;k<48;k++){ const a=k*Math.PI/24; t.push(M4(4.9+0.17,Math.cos(a)*1.04,Math.sin(a)*1.04,a,0,0)); }
+  instanced(new THREE.BoxGeometry(0.012,0.1,0.025), MAT.ink, t, spin).castShadow=false;
+  mesh(new THREE.SphereGeometry(0.07,16,12), new THREE.MeshBasicMaterial({color:0xffffff}), spin, { pos:[4.9+0.18,0.9,0], edges:false }); }
+// bearing pedestals
+for (const x of [1.5, 3.3]){
+  mesh(rbox(0.5,1.15,1.0,0.06), MAT.graphite, all, { pos:[x,0.58,0] });
+  mesh(toX(lathe([[0.12,-0.2],[0.36,-0.2],[0.4,-0.16],[0.4,0.16],[0.36,0.2],[0.12,0.2]],36)), MAT.clay, all, { pos:[x,1.45,0] });
+}
+// brake caliper over the flywheel, with the orange load lever
+const caliper = new THREE.Group(); caliper.position.set(2.8,2.55,0); all.add(caliper);
+mesh(rbox(0.6,0.45,0.9,0.06), MAT.housing, caliper, {});
+for (const z of [-0.32,0.32]) mesh(rbox(0.42,0.2,0.1,0.03), MAT.carbon, caliper, { pos:[0,-0.32,z] });
+mesh(rbox(0.36,1.75,0.36,0.05), MAT.graphite, all, { pos:[3.55,1.35,-0.75] });
+mesh(rbox(1.2,0.25,0.36,0.05), MAT.graphite, all, { pos:[3.1,2.55,-0.75] });
+const leverPivot = new THREE.Group(); leverPivot.position.set(0,0.25,0.2); caliper.add(leverPivot);
+const lever = mesh(rbox(0.12,0.9,0.12,0.05), MAT.accent, leverPivot, { pos:[0,0.45,0] });
+const leverKnob = mesh(new THREE.SphereGeometry(0.13,24,16), MAT.accent, leverPivot, { pos:[0,0.92,0] });
+const loadGrab = [lever, leverKnob];
+
+/* ---------------- bench supply ---------------- */
+const psu = new THREE.Group(); psu.position.set(3.9,0,-2.45); psu.rotation.y = -0.35; all.add(psu);
+mesh(rbox(2.9,1.9,1.7,0.1,4), MAT.clay, psu, { pos:[0,0.95,0] });
+mesh(rbox(2.7,1.6,0.06,0.04), MAT.graphite, psu, { pos:[0,0.95,0.86] });
+{ const mats=[]; for(let i=0;i<14;i++) mats.push(M4(-1.1+i*0.17,1.91,-0.2)); instanced(rbox(0.07,0.02,0.9,0.01,2), MAT.hole, mats, psu); }
+for (const x of [-1.2,1.2]) for (const z of [-0.65,0.65]) mesh(chamferCyl(0.12,0.08,0.02,16), MAT.rubber, psu, { pos:[x,0.02,z], edges:false });
+const disp = canvasTex(512,200,()=>{});
+mesh(new THREE.PlaneGeometry(1.4,0.55), new THREE.MeshBasicMaterial({ map:disp.tex, toneMapped:false, color:new THREE.Color(1.5,1.5,1.5) }), psu, { pos:[-0.45,1.25,0.895], edges:false, cast:false });
+const knob = new THREE.Group(); knob.position.set(0.85,1.15,0.9); psu.add(knob);
+const knobBody = mesh(toZ(lathe([[0,0],[0.34,0],[0.36,0.04],[0.33,0.3],[0.26,0.36],[0,0.36]],48)), MAT.accent, knob, { thresh:20 });
+{ const mats=[]; for(let k=0;k<28;k++){ const a=k/28*Math.PI*2; mats.push(M4(Math.cos(a)*0.345,Math.sin(a)*0.345,0.17,0,0,a)); }
+  instanced(new THREE.BoxGeometry(0.03,0.03,0.24), std(0xd94a16,0.5), mats, knob); }
+mesh(new THREE.BoxGeometry(0.05,0.2,0.02), MAT.ink, knob, { pos:[0,0.16,0.37], edges:false, cast:false });
+{ const mats=[]; for(let k=0;k<=12;k++){ const a=-2.4+4.8*k/12; mats.push(M4(0.85+Math.sin(a)*0.5,1.15+Math.cos(a)*0.5,0.9,0,0,-a)); } instanced(new THREE.BoxGeometry(0.02,0.08,0.01), MAT.ink, mats, psu).castShadow=false; }
+const knobGrab = [knobBody];
+const postPos = [new THREE.Vector3(-0.85,0.55,0.95), new THREE.Vector3(-0.35,0.55,0.95)];
+postPos.forEach((p,i)=>{ mesh(toZ(chamferCyl(0.12,0.22,0.03,20)), i?MAT.insDark:MAT.insRed, psu, { pos:[p.x,p.y,p.z-0.05] }); mesh(toZ(chamferCyl(0.05,0.2,0.01,12)), MAT.brass, psu, { pos:[p.x,p.y,p.z+0.08] }); });
+
+/* ---------------- brake switch + resistor ---------------- */
+const sw = new THREE.Group(); sw.position.set(0.6,0,2.4); all.add(sw);
+mesh(rbox(1.1,0.45,0.8,0.06), MAT.clay, sw, { pos:[0,0.23,0] });
+mesh(chamferCyl(0.16,0.08,0.02,24), MAT.steel, sw, { pos:[0,0.49,0] });
+const togglePivot = new THREE.Group(); togglePivot.position.set(0,0.52,0); sw.add(togglePivot);
+const toggleBat = mesh(new THREE.CylinderGeometry(0.045,0.065,0.55,16), MAT.accent, togglePivot, { pos:[0,0.27,0] });
+const toggleTip = mesh(new THREE.SphereGeometry(0.085,20,14), MAT.accent, togglePivot, { pos:[0,0.56,0] });
+const brakeGrab = [toggleBat, toggleTip];
+const res = new THREE.Group(); res.position.set(3.4,0.55,2.4); all.add(res);
+const heatMat = std(0xe6e1d6, 0.6, 0, { emissive:0x000000, emissiveIntensity:1 });
+const resBody = mesh(toX(lathe([[0.12,-0.95],[0.26,-0.95],[0.3,-0.9],[0.3,0.9],[0.26,0.95],[0.12,0.95]],40)), heatMat, res, {});
+{ const mats=[]; for(let k=0;k<9;k++) mats.push(M4(-0.7+k*0.175,0,0,0,0,-Math.PI/2)); instanced(new THREE.TorusGeometry(0.305,0.012,6,40).rotateX(Math.PI/2), MAT.copper, mats, res); }
+for (const s of [-1,1]){ mesh(rbox(0.12,0.62,0.5,0.03), MAT.steel, res, { pos:[s*1.05,-0.25,0] }); mesh(chamferCyl(0.08,0.06,0.02,12), MAT.brass, res, { pos:[s*1.05,0.1,0.18] }); }
+const resPos = [new THREE.Vector3(3.4-1.05,0.65,2.58), new THREE.Vector3(3.4+1.05,0.65,2.58)];
+
+/* ---------------- wires + current particles ---------------- */
+const tmp = new THREE.Vector3();
+const wp = (o, v) => o.localToWorld(v.clone());
+all.updateMatrixWorld(true);
+const T_pos = wp(motor, termPos[0]), T_neg = wp(motor, termPos[1]);
+const PS_pos = wp(psu, postPos[0]).add(new THREE.Vector3(0,0,0.1)), PS_neg = wp(psu, postPos[1]).add(new THREE.Vector3(0,0,0.1));
+const SW_a = wp(sw, new THREE.Vector3(-0.4,0.48,0)), SW_b = wp(sw, new THREE.Vector3(0.4,0.48,0));
+function wireCurve(a,b,lift=0.9,sag=0.03){ const m1=a.clone().lerp(b,0.25), m2=a.clone().lerp(b,0.75); m1.y=sag+0.05; m2.y=sag+0.05;
+  return new THREE.CatmullRomCurve3([a, a.clone().add(new THREE.Vector3(0,lift*0.5,0)), m1, m2, b.clone().add(new THREE.Vector3(0,lift*0.5,0)), b], false, 'catmullrom', 0.4); }
+const wires = {
+  supPos: { c: wireCurve(PS_pos, T_pos), m: MAT.insRed },
+  supNeg: { c: wireCurve(T_neg, PS_neg), m: MAT.insDark },
+  brkA:   { c: wireCurve(T_pos, SW_a, 0.6), m: MAT.insRed },
+  brkB:   { c: wireCurve(SW_b, resPos[0], 0.5), m: MAT.insDark },
+  brkC:   { c: wireCurve(resPos[1], T_neg, 0.7), m: MAT.insDark },
+};
+const particleGeo = new THREE.SphereGeometry(0.045, 10, 8);
+const particleMat = new THREE.MeshBasicMaterial({ color:new THREE.Color(0x56b4e9).multiplyScalar(2.6), toneMapped:false });
+for (const w of Object.values(wires)){
+  mesh(new THREE.TubeGeometry(w.c, 140, 0.045, 10), w.m, all, { edges:false });
+  w.len = w.c.getLength(); w.n = Math.max(10, Math.round(w.len*5));
+  w.p = new THREE.InstancedMesh(particleGeo, particleMat, w.n); w.p.castShadow=false; w.p.frustumCulled=false; all.add(w.p); w.phase = 0;
+}
+const dummy = new THREE.Object3D();
+function updateParticles(w, speed, visible){
+  w.p.visible = visible; if(!visible) return;
+  w.phase = (w.phase + speed/w.len + 1) % 1;
+  for(let i=0;i<w.n;i++){ const u=(i/w.n + w.phase)%1; w.c.getPointAt(u, tmp); dummy.position.copy(tmp); dummy.scale.setScalar(0.8+0.4*Math.sin(u*40)); dummy.updateMatrix(); w.p.setMatrixAt(i, dummy.matrix); }
+  w.p.instanceMatrix.needsUpdate = true;
+}
+
+/* ---------------- torque arrow ---------------- */
+const torque = new THREE.Group(); torque.position.set(-2.1+2.55,1.45,0); all.add(torque);
+const forceMat = new THREE.MeshBasicMaterial({ color:new THREE.Color(0x009e73).multiplyScalar(1.8), toneMapped:false });
+const arc = new THREE.Mesh(new THREE.TorusGeometry(0.42,0.035,8,48,Math.PI*1.4), forceMat); arc.rotation.y = Math.PI/2; torque.add(arc);
+const head = new THREE.Mesh(new THREE.ConeGeometry(0.09,0.22,16), forceMat);
+head.position.set(0, Math.sin(Math.PI*1.4)*0.42, Math.cos(Math.PI*1.4)*0.42); head.rotation.x = Math.PI*1.4 + Math.PI; torque.add(head);
+// heat shimmer motes above resistor
+const moteN = 26, motes = new THREE.InstancedMesh(new THREE.SphereGeometry(0.03,8,6), new THREE.MeshBasicMaterial({ color:0xe69f00, transparent:true, opacity:0.8, toneMapped:false }), moteN);
+motes.frustumCulled=false; all.add(motes); const moteSeed = Array.from({length:moteN},()=>[Math.random()*2-1, Math.random(), Math.random()*0.5-0.25]);
+
+/* ---------------- post ---------------- */
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(256,256), 0.7, 0.5, 1.05);
+composer.addPass(bloom); composer.addPass(new OutputPass());
+
+/* ---------------- theme ---------------- */
+let look = 'bench';
+function applyLook(name){
+  look = name; const t = THEMES[name]; document.body.dataset.look = name;
+  scene.background = new THREE.Color(t.bg); scene.fog = new THREE.Fog(t.bg, 22, 46);
+  MAT.bench.color.setHex(t.bench); MAT.graphite.color.setHex(t.graphite);
+  for (const m of [MAT.housing, MAT.housingCut]) m.color.setHex(t.housing);
+  for (const m of [MAT.clay, MAT.clayCut]) m.color.setHex(t.clay);
+  heatMat.color.setHex(t.ceramic);
+  for (const m of [edgeMat, edgeMatCut]){ m.color.setHex(t.edge); m.opacity = t.edgeOp; }
+  scene.environmentIntensity = t.env; key.intensity = t.key; hemi.intensity = t.hemi; bloom.strength = t.bloom; bloom.threshold = t.thr; renderer.toneMappingExposure = t.exp;
+  MAT.ink.color.setHex(name==='paper'?0x1e1f22:0xece7dc);
+  floorShadow.material.opacity = name==='paper'?0.6:1;
+}
+
+/* ---------------- moment: play / reveal (morph) ---------------- */
+let mode = 'play', morph = 0, cutaway = false;
+function setCut(on){ cutaway = on; for (const m of clippables) m.clippingPlanes = on ? [cutPlane] : []; for (const m of clippables) m.needsUpdate = true; document.getElementById('cut').setAttribute('aria-pressed', on); }
+
+/* ---------------- sound ---------------- */
+let A = null;
+function initAudio(){
+  if (A) return; const ctx = new (window.AudioContext||window.webkitAudioContext)();
+  const master = ctx.createGain(); master.gain.value = 0.5; master.connect(ctx.destination);
+  const lp = ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=900; lp.Q.value=4; lp.connect(master);
+  const hum = ctx.createGain(); hum.gain.value=0; hum.connect(lp);
+  const o1 = ctx.createOscillator(); o1.type='sawtooth'; const o2 = ctx.createOscillator(); o2.type='square';
+  const g2 = ctx.createGain(); g2.gain.value=0.25; o1.connect(hum); o2.connect(g2); g2.connect(hum); o1.start(); o2.start();
+  const noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate); const d=noiseBuf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+  const hiss = ctx.createBufferSource(); hiss.buffer=noiseBuf; hiss.loop=true; const hbp=ctx.createBiquadFilter(); hbp.type='bandpass'; hbp.frequency.value=5200; hbp.Q.value=0.7;
+  const hg = ctx.createGain(); hg.gain.value=0; hiss.connect(hbp); hbp.connect(hg); hg.connect(master); hiss.start();
+  A = { ctx, master, hum, o1, o2, lp, hg, noiseBuf };
+}
+function click(f=2400, dur=0.012, vol=0.25){ if(!A) return; const t=A.ctx.currentTime; const s=A.ctx.createBufferSource(); s.buffer=A.noiseBuf; const bp=A.ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=f; bp.Q.value=6; const g=A.ctx.createGain(); g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.0001,t+dur); s.connect(bp); bp.connect(g); g.connect(A.master); s.start(t); s.stop(t+dur+0.02); }
+function thump(){ if(!A) return; const t=A.ctx.currentTime; const o=A.ctx.createOscillator(); o.frequency.setValueAtTime(140,t); o.frequency.exponentialRampToValueAtTime(45,t+0.12); const g=A.ctx.createGain(); g.gain.setValueAtTime(0.6,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.16); o.connect(g); g.connect(A.master); o.start(t); o.stop(t+0.2); click(900,0.03,0.4); }
+function buzz(ms){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} }
+
+/* ---------------- UI wiring ---------------- */
+const $ = id => document.getElementById(id);
+function seg(id, cb){ const el=$(id); el.addEventListener('click', e=>{ const b=e.target.closest('button'); if(!b) return; el.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed', x===b)); cb(b.dataset.v); }); }
+seg('mode', v=>{ mode=v; $('badge').hidden = v!=='reveal'; if (v==='reveal' && !cutaway) setCut(true); if (v==='play') setCut(false); thump(); buzz(20); });
+seg('look', v=>{ applyLook(v); click(1800); });
+function setV(v, fromKnob){ const nv = Math.max(0, Math.min(60, Math.round(v*2)/2)); if (nv!==S.V){ S.V=nv; click(2600,0.01,0.18); buzz(6); } $('sV').value=S.V; $('oV').textContent=S.V.toFixed(1)+' V'; }
+function setL(v){ const nv = Math.max(0, Math.min(5, Math.round(v*2)/2)); if (nv!==S.load){ S.load=nv; click(1500,0.02,0.3); buzz(10); } $('sL').value=S.load; $('oL').textContent=S.load.toFixed(1)+' Nm'; }
+function setBrake(on){ S.brake=on; $('brake').setAttribute('aria-pressed', on); thump(); buzz([15,30,15]); }
+$('sV').addEventListener('input', e=>setV(+e.target.value));
+$('sL').addEventListener('input', e=>setL(+e.target.value));
+$('brake').addEventListener('click', ()=>setBrake(!S.brake));
+$('sound').addEventListener('click', e=>{ initAudio(); A.ctx.resume(); const on = A.master.gain.value===0; A.master.gain.value = on?0.5:0; const b=e.currentTarget; b.textContent = on?'Sound off':'Sound on'; b.classList.toggle('hot', !on); b.setAttribute('aria-pressed', on); });
+$('cut').addEventListener('click', ()=>setCut(!cutaway));
+$('bloom').addEventListener('click', e=>{ bloom.enabled=!bloom.enabled; e.currentTarget.setAttribute('aria-pressed', bloom.enabled); });
+$('edges').addEventListener('click', e=>{ const on = !edgeLines[0].visible; edgeLines.forEach(l=>l.visible=on); e.currentTarget.setAttribute('aria-pressed', on); });
+$('cvd').addEventListener('change', e=>{ const v=e.target.value; const f = v?`url(#cvd-${v})`:''; stage.style.filter=f; $('hud').style.filter=f; });
+$('sheetToggle').addEventListener('click', e=>{ const p=$('panel'); p.classList.toggle('closed'); e.currentTarget.setAttribute('aria-expanded', !p.classList.contains('closed')); });
+if (MOBILE) $('panel').classList.add('closed');
+function pressSeg(id, v){ const b=$(id).querySelector(`[data-v="${v}"]`); b && b.click(); }
+addEventListener('keydown', e=>{ if (e.target.closest('input,select')) return; const k=e.key.toLowerCase();
+  if (k==='r') pressSeg('mode', mode==='reveal'?'play':'reveal');
+  else if (k==='1') pressSeg('look','bench'); else if (k==='2') pressSeg('look','cyanotype'); else if (k==='3') pressSeg('look','paper');
+  else if (k==='c') $('cut').click(); else if (k==='b') $('brake').click();
+  else if (k==='arrowup') setV(S.V+0.5); else if (k==='arrowdown') setV(S.V-0.5); });
+
+/* ---------------- direct manipulation on the bench ---------------- */
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+let drag = null, hover = null;
+function pick(e){ const r=renderer.domElement.getBoundingClientRect(); ndc.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1); ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects([...knobGrab, ...loadGrab, ...brakeGrab], false)[0]; if(!hit) return null;
+  return knobGrab.includes(hit.object)?'V': loadGrab.includes(hit.object)?'L':'B'; }
+renderer.domElement.addEventListener('pointerdown', e=>{ const t=pick(e); if(!t) return; initAudio(); A.ctx.resume();
+  if (t==='B'){ setBrake(!S.brake); return; }
+  drag = { t, y:e.clientY, x:e.clientX, v: t==='V'?S.V:S.load }; controls.enabled=false; renderer.domElement.setPointerCapture(e.pointerId); $('hint').style.opacity=0; });
+renderer.domElement.addEventListener('pointermove', e=>{
+  if (drag){ const d = (drag.y-e.clientY) + (e.clientX-drag.x)*0.6; if (drag.t==='V') setV(drag.v + d*0.12); else setL(drag.v + d*0.015); return; }
+  const t = pick(e); if (t!==hover){ hover=t; renderer.domElement.style.cursor = t?'grab':''; } });
+const endDrag = ()=>{ if(drag){ drag=null; controls.enabled=true; } };
+renderer.domElement.addEventListener('pointerup', endDrag); renderer.domElement.addEventListener('pointercancel', endDrag);
+
+/* ---------------- overlays anchored to 3D ---------------- */
+const anchors = [
+  { el:$('hint'),   obj:knob,  off:new THREE.Vector3(0,0.55,0) },
+  { el:$('tagArm'), obj:motor, off:new THREE.Vector3(-0.2,1.35,0) },
+  { el:$('tagRes'), obj:res,   off:new THREE.Vector3(0,0.55,0) },
+  { el:$('tagPsu'), obj:psu,   off:new THREE.Vector3(0,2.15,0) },
+  { el:$('eq'),     obj:motor, off:new THREE.Vector3(0.2,2.0,0) },
+];
+function placeAnchors(){ const r=renderer.domElement.getBoundingClientRect();
+  for (const a of anchors){ a.obj.localToWorld(tmp.copy(a.off)); tmp.project(camera);
+    let x=(tmp.x+1)/2*r.width, y=(1-tmp.y)/2*r.height;
+    if (a.el.id==='eq'){ const h=a.el.offsetHeight*1.15, w=a.el.offsetWidth/2; y=Math.max(h+12,y); x=Math.min(Math.max(x,w+16),r.width-w-16); }
+    a.el.style.left = x+'px'; a.el.style.top = y+'px'; } }
+
+/* ---------------- display + readouts ---------------- */
+function drawDisplay(){ const g=disp.ctx, w=512, h=200; const glass = look==='paper' ? '#0d1a12' : '#07120b';
+  g.fillStyle=glass; g.fillRect(0,0,w,h); g.fillStyle='rgba(60,255,143,.06)'; for(let y=0;y<h;y+=4) g.fillRect(0,y,w,1);
+  g.fillStyle='#3cff8f'; g.shadowColor='#3cff8f'; g.shadowBlur=14; g.textBaseline='alphabetic';
+  g.font='900 92px Doto, monospace'; g.fillText(S.V.toFixed(1).padStart(4,' '),20,104); g.font='700 40px Doto, monospace'; g.fillText('V',300,104);
+  g.font='900 60px Doto, monospace'; g.fillText(Math.max(0,S.brake?0:S.I).toFixed(1).padStart(5,' '),20,180); g.font='700 34px Doto, monospace'; g.fillText('A',236,180);
+  g.shadowBlur=0; g.font='500 22px "JetBrains Mono", monospace'; g.fillStyle='rgba(60,255,143,.65)'; g.fillText(S.brake?'OUTPUT OFF':'CV  ON',330,180);
+  disp.tex.needsUpdate=true; }
+const heatRamp = [[25,0x000000],[70,0x5a1500],[160,0xb84a00],[260,0xe69f00],[420,0xffe6b0]];
+function heatColor(T){ for(let i=1;i<heatRamp.length;i++) if(T<=heatRamp[i][0]){ const [t0,c0]=heatRamp[i-1],[t1,c1]=heatRamp[i]; return new THREE.Color(c0).lerp(new THREE.Color(c1),(T-t0)/(t1-t0)); } return new THREE.Color(0xffe6b0); }
+
+/* ---------------- loop ---------------- */
+function resize(){ const w=stage.clientWidth, h=stage.clientHeight; renderer.setSize(w,h,false); composer.setSize(w,h); camera.aspect=w/h; camera.fov = w<h ? 46 : 32; camera.updateProjectionMatrix(); bloom.resolution.set(w/2,h/2); }
+addEventListener('resize', resize); resize();
+applyLook('bench'); setV(20); setL(1);
+document.fonts?.ready.then(()=>{ fontsReady=true; drawPlate(); });
+
+const clock = new THREE.Clock(); let angle=0, fpsT=0, frames=0, dispT=0;
+function frame(){
+  const dtReal = Math.min(clock.getDelta(), 0.05);
+  const tScale = mode==='reveal' ? 0.25 : 1;
+  const dt = dtReal*tScale;
+  stepModel(dt);
+
+  // morph: reveal ghosts the housing and lifts blueprint edges
+  morph += ((mode==='reveal'?1:0) - morph) * Math.min(1, dtReal*4);
+  MAT.housingCut.transparent = morph>0.01; MAT.housingCut.opacity = 1-0.75*morph; MAT.housingCut.depthWrite = morph<0.5;
+  edgeMat.opacity = THEMES[look].edgeOp + (1-THEMES[look].edgeOp)*morph*0.6;
+
+  // rotation (drawn at 1/30 speed)
+  angle += S.w * dt / 30;
+  rotor.rotation.x = angle; spin.rotation.x = angle;
+
+  // knob, lever, toggle poses
+  knob.rotation.z = -(-2.4 + 4.8*S.V/60);
+  leverPivot.rotation.x = -0.15 - 0.9*(S.load/5);
+  togglePivot.rotation.x += ((S.brake?0.55:-0.55) - togglePivot.rotation.x)*Math.min(1,dtReal*14);
+  const pulse = 0.25 + 0.25*Math.sin(clock.elapsedTime*3);
+  MAT.accent.emissiveIntensity = hover ? 0.55 : (drag?0.7:pulse*0.35);
+
+  // semantic layer
+  const Iabs = Math.abs(S.I), sp = Math.min(3, Iabs*0.06+0.2) * dt * (mode==='reveal'?3:1);
+  const drive = !S.brake && Iabs>0.3, brk = S.brake && Iabs>0.3;
+  updateParticles(wires.supPos, sp, drive); updateParticles(wires.supNeg, sp, drive);
+  updateParticles(wires.brkA, -sp, brk); updateParticles(wires.brkB, sp, brk); updateParticles(wires.brkC, sp, brk);
+  const tq = Math.abs(S.T); torque.visible = tq>0.05; torque.scale.setScalar(0.6+Math.min(1.6, tq/3)); torque.rotation.x = S.T>=0?0:Math.PI;
+  fieldLines.visible = morph>0.05 || cutaway; fieldMat.opacity = Math.max(morph, cutaway?0.6:0);
+  const hc = heatColor(S.tempC); heatMat.emissive.copy(hc); heatMat.emissiveIntensity = 1 + Math.min(3, Math.max(0,(S.tempC-120)/90));
+  motes.visible = S.tempC>90;
+  if (motes.visible){ const k=Math.min(1,(S.tempC-90)/250); for(let i=0;i<moteN;i++){ const s=moteSeed[i]; s[1]=(s[1]+dtReal*(0.3+0.4*k))%1; dummy.position.set(3.4+s[0]*0.9, 0.9+s[1]*1.2, 2.4+s[2]+Math.sin(clock.elapsedTime*3+i)*0.05); dummy.scale.setScalar((1-s[1])*(0.6+k)); dummy.updateMatrix(); motes.setMatrixAt(i,dummy.matrix);} motes.instanceMatrix.needsUpdate=true; }
+
+  // sound follows physics
+  if (A){ const f = 30 + Math.abs(S.w)*0.42; A.o1.frequency.setTargetAtTime(f, A.ctx.currentTime, 0.05); A.o2.frequency.setTargetAtTime(f*2.01, A.ctx.currentTime, 0.05);
+    A.hum.gain.setTargetAtTime(Math.min(0.22, Math.abs(S.w)/900), A.ctx.currentTime, 0.08); A.lp.frequency.setTargetAtTime(500+Math.min(2500,Iabs*90), A.ctx.currentTime, 0.1);
+    A.hg.gain.setTargetAtTime(Math.min(0.12, S.Pb/6000), A.ctx.currentTime, 0.1); }
+
+  // readouts
+  const rpm = S.w*60/(2*Math.PI);
+  $('rpm').textContent = Math.round(rpm);
+  const z = (v,d)=>{ const t=v.toFixed(d); return /^-0\.?0*$/.test(t)?t.slice(1):t; };
+  $('rV').textContent = (S.brake?0:S.V).toFixed(1); $('rI').textContent = z(S.I,1); $('rT').textContent = z(S.T,2);
+  const Pout = S.load*Math.tanh(S.w/2)*S.w, Pin = S.brake?0:S.V*S.I; $('rE').textContent = (!S.brake && Pin>5) ? Math.round(100*Pout/Pin)+'%' : '—';
+  const ok = !S.brake && Math.abs(S.load-3)<0.01 && Math.abs(rpm-2000)<=20;
+  $('check').innerHTML = ok ? `<span class="ok">✓ ${Math.round(rpm)} rpm at ${S.V.toFixed(1)} V · answer sheet: 43.4 V</span>` : `Target: 2000 ± 20 rpm at 3.0 Nm · now ${Math.round(rpm)} rpm, ${S.load.toFixed(1)} Nm`;
+  $('eqLive').textContent = `${(S.brake?0:S.V).toFixed(1)} = 0.2×${S.w.toFixed(1)} + ${S.I.toFixed(1)}×0.1`;
+  dispT += dtReal; if (dispT>0.1){ dispT=0; drawDisplay(); }
+
+  // anchored overlays: tags only in reveal (≤3), hint until first grab
+  $('eq').style.opacity = morph; for (const id of ['tagArm','tagRes','tagPsu']) $(id).style.opacity = morph;
+  placeAnchors();
+
+  controls.update();
+  renderer.info.reset();
+  composer.render();
+
+  frames++; fpsT += dtReal; if (fpsT>0.5){ const i=renderer.info.render; $('perf').textContent = `${Math.round(frames/fpsT)} fps · ${i.calls} draws · ${(i.triangles/1000).toFixed(0)}k tris`; frames=0; fpsT=0; }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>

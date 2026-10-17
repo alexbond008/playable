@@ -402,7 +402,7 @@ playable({
   title: "Motor Bench",
   source: "Tutorial 1.1 · Brushed DC motors",
   subtitle: "Eight questions from a real DC-machines tutorial sheet, each one a level you play on a working motor test bench. Predict first, then find out.",
-  camera: { position: [7.2, 7.4, 13.2], target: [0.9, 1.0, 0.6], maxDistance: 26, minAzimuth: -1.3, maxAzimuth: 1.3 },
+  camera: { position: [7.2, 7.4, 13.2], target: [0.9, 1.0, 0.6], maxDistance: 26, minAzimuth: -1.3, maxAzimuth: 1.3, focus: { min: [-6.2, 0, -3.4], max: [5.6, 2.8, 3.3] } },
   verified,
   readouts,
   equations,

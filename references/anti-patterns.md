@@ -39,3 +39,4 @@ Each rule here comes from something that actually went wrong. Add a new entry ev
 - **Wall-clock timers inside a bot solution.** `setTimeout(() => brake(), 300)` never lined up with simulated time. Solutions act instantly.
 - **Screenshot coordinates ≠ CSS pixels.** The page was 1920 px wide and the screenshot 1568 px; clicks computed in CSS pixels missed. Scale by `screenshotWidth / innerWidth`.
 - **Audio in tests.** The headless browser played the game's sound through the user's speakers. Always launch test browsers with `--mute-audio`.
+- **Two functions with the same name in one scope.** `stage.frame` (camera framing) was shadowed by the render loop's own `function frame()`, so calling it silently started a second render loop and never moved the camera. Function declarations hoist; the last one wins. Name helpers for what they do (`frameBox`, `renderLoop`).

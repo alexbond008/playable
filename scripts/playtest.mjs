@@ -90,6 +90,8 @@ try {
 
   for (const [label, w, h, mobile] of [["desktop", 1440, 900, false], ["phone", 390, 844, true]]) {
     await viewport(w, h, mobile);
+    // a fresh document per view: navigating to the same URL + hash is a same-document navigation and would not reload
+    await send("Page.navigate", { url: "about:blank" });
     await send("Page.navigate", { url: pathToFileURL(page).href + "#unlock" });
     await waitFor(() => evaluate("!!window.__playable", false), 60000, 250, "the game to boot");
     await evaluate("localStorage.clear(), 1", false);
@@ -97,12 +99,15 @@ try {
     for (const id of ids.filter((x) => !only.length || only.includes(x))) {
       const r = await evaluate(`window.__playable.autoplay(${JSON.stringify(id)}, { simSeconds: 60 })`);
       await new Promise((res) => setTimeout(res, 1200));
-      const perf = await evaluate("({ ...window.__playable.stage.perf })", false);
+      // count this level's draws exactly: one render with fresh counters (the rolling perf sample lags on slow headless frames)
+      const perf = await evaluate("(() => { const s = window.__playable.stage; s.renderer.info.reset(); s.composer.render(); const i = s.renderer.info.render; return { calls: i.calls, tris: i.triangles }; })()", false);
       const draws = perf.calls;
       const budget = mobile ? BUDGET.phoneDraws : BUDGET.desktopDraws;
-      const row = { view: label, id, solved: r.solved, ms: r.ms, sim: r.simSeconds, stars: r.stars, draws, tris: perf.tris, overBudget: draws > budget };
+      const badControls = (r.controls || []).filter((c) => !c.ok);
+      const row = { view: label, id, controls: (r.controls || []).length, badControls, solved: r.solved, ms: r.ms, sim: r.simSeconds, stars: r.stars, draws, tris: perf.tris, overBudget: draws > budget };
       results.push(row);
       if (!r.solved) failed++;
+      if (badControls.length) { failed++; console_.push(`${label} ${id}: ${badControls.map((c) => c.why).join(", ")}`); }
       await shot(join(shots, `${label}-${id}.png`));
     }
     for (const look of ["bench", "cyanotype", "paper"]) {
@@ -124,8 +129,8 @@ try {
 }
 
 const pad = (s, n) => String(s).padEnd(n);
-console.log(`${pad("view", 9)}${pad("level", 7)}${pad("solved", 8)}${pad("sim time", 10)}${pad("stars", 7)}${pad("draws", 8)}tris`);
-for (const r of results) console.log(`${pad(r.view, 9)}${pad(r.id, 7)}${pad(r.solved ? "yes" : "NO", 8)}${pad(r.sim + " s", 10)}${pad(r.stars, 7)}${pad(r.draws + (r.overBudget ? "!" : ""), 8)}${Math.round(r.tris / 1000)}k`);
+console.log(`${pad("view", 9)}${pad("level", 7)}${pad("grabs", 7)}${pad("solved", 8)}${pad("sim time", 10)}${pad("stars", 7)}${pad("draws", 8)}tris`);
+for (const r of results) console.log(`${pad(r.view, 9)}${pad(r.id, 7)}${pad(r.badControls.length ? `${r.controls - r.badControls.length}/${r.controls}!` : `${r.controls}/${r.controls}`, 7)}${pad(r.solved ? "yes" : "NO", 8)}${pad(r.sim + " s", 10)}${pad(r.stars, 7)}${pad(r.draws + (r.overBudget ? "!" : ""), 8)}${Math.round(r.tris / 1000)}k`);
 const errors = [...new Set(console_)];
 if (errors.length) {
   console.log(`\nconsole errors (${errors.length}):`);

@@ -84668,7 +84668,7 @@ function createStage(container, cam = {}) {
     look = name;
     const L = LOOKS[name];
     scene.background = new THREE.Color(L.scene.bg);
-    scene.fog = new THREE.Fog(L.scene.bg, 22, 46);
+    scene.fog = new THREE.Fog(L.scene.bg, ...fogRange);
     for (const [m, token] of lookBound) m.color.setHex(L.scene[token]);
     for (const em of edgeMaterials) if (em) { em.color.setHex(L.edge.color); em.opacity = L.edge.opacity; }
     scene.environmentIntensity = L.light.env;
@@ -84708,12 +84708,42 @@ function createStage(container, cam = {}) {
   addEventListener("resize", resize);
   resize();
 
+  const presetDir = camera.position.clone().sub(controls.target).normalize();
+  let fogRange = [22, 46];
+  let camTween = null;
+  function frameBox(min, max, clear, duration = 0.7) {
+    const box = new THREE.Box3(new THREE.Vector3(...min), new THREE.Vector3(...max));
+    const center = box.getCenter(new THREE.Vector3());
+    const radius = box.getBoundingSphere(new THREE.Sphere()).radius;
+    const W = container.clientWidth || 1;
+    const H = container.clientHeight || 1;
+    const c = clear ?? { l: 0, t: 0, r: W, b: H };
+    const cw = Math.max(80, c.r - c.l);
+    const ch = Math.max(80, c.b - c.t);
+    const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    const half = Math.min(Math.atan(tanV * (ch / H)), Math.atan(tanV * camera.aspect * (cw / W)));
+    const dist = (radius / Math.sin(half)) * 0.92;
+    controls.maxDistance = Math.max(controls.maxDistance, dist * 1.3);
+    const toPos = center.clone().addScaledVector(presetDir, dist);
+    fogRange = [Math.max(22, dist + radius * 1.2), Math.max(46, dist + radius * 4 + 12)];
+    if (scene.fog) [scene.fog.near, scene.fog.far] = fogRange;
+    camera.far = Math.max(200, fogRange[1] * 1.5);
+    camera.setViewOffset(W, H, W / 2 - (c.l + c.r) / 2, H / 2 - (c.t + c.b) / 2, W, H);
+    if (!duration) {
+      controls.target.copy(center);
+      camera.position.copy(toPos);
+      camTween = null;
+      return;
+    }
+    camTween = { t: 0, duration, fromPos: camera.position.clone(), fromTarget: controls.target.clone(), toPos, toTarget: center };
+  }
+
   const frameFns = [];
   const stage = {
     THREE, renderer, scene, root, camera, controls, composer, bloom, key, MOBILE,
     timeScale: 1,
     perf: { fps: 0, calls: 0, tris: 0, quality: 2 },
-    mat, edgeMat, glow, setLook, setCut,
+    mat, edgeMat, glow, setLook, setCut, frame: frameBox,
     get look() { return look; },
     get cut() { return cut; },
     onLook: (fn) => lookListeners.push(fn),
@@ -84724,6 +84754,14 @@ function createStage(container, cam = {}) {
   let frames = 0, acc = 0, slow = 0;
   function frame() {
     const dtReal = Math.min(clock.getDelta(), 0.05);
+    if (camTween) {
+      camTween.t = Math.min(camTween.duration, camTween.t + dtReal);
+      const k = camTween.t / camTween.duration;
+      const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
+      camera.position.lerpVectors(camTween.fromPos, camTween.toPos, e);
+      controls.target.lerpVectors(camTween.fromTarget, camTween.toTarget, e);
+      if (k >= 1) camTween = null;
+    }
     const dt = dtReal * stage.timeScale;
     for (const fn of frameFns) fn(dt, dtReal, clock.elapsedTime);
     controls.update();
@@ -86812,7 +86850,7 @@ function createInteraction(stage, audio) {
     drag = { t, x: e.clientX, y: e.clientY, moved: 0, data: t.onDragStart?.(e, ray, lastHit) };
     if (drag.data === false) { drag = null; return; }
     stage.controls.enabled = false;
-    el.setPointerCapture(e.pointerId);
+    try { el.setPointerCapture(e.pointerId); } catch {}
   }, { capture: true });
 
   el.addEventListener("pointermove", (e) => {
@@ -86849,8 +86887,37 @@ function createInteraction(stage, audio) {
     accent.emissiveIntensity = drag ? 0.7 : hover ? 0.55 : pulse;
   });
 
+  function probe() {
+    const results = [];
+    const r = el.getBoundingClientRect();
+    const v = new THREE.Vector3();
+    for (const t of targets) {
+      if (!t.enabled()) continue;
+      const m = t.meshes.find((x) => x.visible && visibleChain(x));
+      if (!m) continue;
+      if (m.isInstancedMesh) {
+        const mx = new THREE.Matrix4();
+        m.getMatrixAt(m.count - 1, mx);
+        v.setFromMatrixPosition(mx).applyMatrix4(m.matrixWorld);
+      } else m.getWorldPosition(v);
+      v.project(stage.camera);
+      if (Math.abs(v.x) > 1 || Math.abs(v.y) > 1) { results.push({ ok: false, why: "off-screen" }); continue; }
+      const x = r.left + ((v.x + 1) / 2) * r.width;
+      const y = r.top + ((1 - v.y) / 2) * r.height;
+      const fire = (type, dx = 0, dy = 0) => el.dispatchEvent(new PointerEvent(type, { clientX: x + dx, clientY: y + dy, pointerId: 7, bubbles: true, cancelable: true, button: 0, buttons: type === "pointerup" ? 0 : 1 }));
+      fire("pointerdown");
+      const grabbed = !!drag || !t.onDrag;
+      fire("pointermove", 12, -18);
+      fire("pointermove", 30, -40);
+      fire("pointerup", 30, -40);
+      results.push({ ok: grabbed, why: grabbed ? "" : "pointer did not grab it" });
+    }
+    return results;
+  }
+
   return {
     register,
+    probe,
     get dragging() { return !!drag; },
     setEnabled(v) { enabled = v; if (!v) el.style.cursor = ""; },
   };
@@ -86985,6 +87052,178 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-ui);font
 
 return { HUD_CSS };
 })();
+/* kit/core/code.mjs */
+__mod["kit/core/code.mjs"] = await (async () => {
+const KEYWORDS = /\b(alignas|alignof|auto|bool|break|case|char|class|const|constexpr|continue|default|delete|do|double|else|enum|extern|false|float|for|if|inline|int|long|namespace|new|nullptr|private|public|return|short|signed|sizeof|static|struct|switch|template|this|true|typedef|typename|union|unsigned|using|virtual|void|volatile|while|def|import|from|in|is|not|and|or|None|True|False|lambda|pass|function|let|var|end|elseif|module|entity|architecture|begin|process|signal|port|is)\b/g;
+const TYPES = /\b(u?int(8|16|32|64)_t|size_t|string|std|cout|cin|endl|printf|scanf|malloc|free|NULL)\b/g;
+
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function highlight(line) {
+  const parts = [];
+  const re = /(\/\/.*$|#.*$|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\b\d+(?:\.\d+)?\b)/g;
+  let last = 0;
+  let m;
+  while ((m = re.exec(line))) {
+    parts.push(["", line.slice(last, m.index)]);
+    const t = m[0];
+    parts.push([t.startsWith("//") || (t.startsWith("#") && !/^#(include|define|pragma|if|endif|ifdef|ifndef)/.test(t)) ? "cm" : t.startsWith("#") ? "pp" : /^["']/.test(t) ? "st" : "nu", t]);
+    last = m.index + t.length;
+  }
+  parts.push(["", line.slice(last)]);
+  return parts.map(([cls, text]) => {
+    const e = escapeHtml(text);
+    if (cls) return `<span class="${cls}">${e}</span>`;
+    return e.replace(KEYWORDS, '<span class="kw">$1</span>').replace(TYPES, '<span class="ty">$1</span>');
+  }).join("");
+}
+
+function createCodePanel(parent, { title = "main.cpp", source = "", onRun, onStep, onReset } = {}) {
+  const el = document.createElement("section");
+  el.id = "code";
+  el.setAttribute("aria-label", `Code: ${title}`);
+  el.innerHTML = `<header><b></b><span class="cstatus" aria-live="polite"></span><button class="ctoggle" aria-expanded="true">Hide</button></header><ol class="lines"></ol><pre class="cout" aria-label="Program output" aria-live="polite" hidden></pre><footer><button class="crun primary">Run</button><button class="cstep ghost">Step</button><button class="creset ghost">Reset</button></footer>`;
+  parent.append(el);
+  el.querySelector("header b").textContent = title;
+  const list = el.querySelector(".lines");
+  const status = el.querySelector(".cstatus");
+  const toggle = el.querySelector(".ctoggle");
+  const cout = el.querySelector(".cout");
+  const setClosed = (closed) => {
+    el.classList.toggle("closed", closed);
+    toggle.textContent = closed ? "Code" : "Hide";
+    toggle.setAttribute("aria-expanded", String(!closed));
+  };
+  toggle.addEventListener("click", () => setClosed(!el.classList.contains("closed")));
+  el.querySelector(".crun").addEventListener("click", () => onRun?.());
+  el.querySelector(".cstep").addEventListener("click", () => onStep?.());
+  el.querySelector(".creset").addEventListener("click", () => onReset?.());
+  let lines = [];
+  const slots = new Map();
+
+  function render() {
+    list.replaceChildren();
+    lines.forEach((text, i) => {
+      const li = document.createElement("li");
+      li.dataset.n = String(i + 1);
+      const slot = slots.get(i + 1);
+      if (slot) {
+        const indent = text.match(/^\s*/)[0];
+        li.innerHTML = `<code>${escapeHtml(indent)}</code>`;
+        const pick = document.createElement("select");
+        pick.className = "slot";
+        pick.setAttribute("aria-label", `Choose line ${i + 1}`);
+        pick.innerHTML = `<option value="">${escapeHtml(slot.placeholder ?? "choose a line…")}</option>` + slot.options.map((o, j) => `<option value="${j}">${escapeHtml(o)}</option>`).join("");
+        if (slot.value != null) pick.value = String(slot.value);
+        pick.addEventListener("change", () => {
+          slot.value = pick.value === "" ? null : +pick.value;
+          slot.onPick?.(slot.value);
+        });
+        li.append(pick);
+      } else {
+        li.innerHTML = `<code>${highlight(text) || " "}</code>`;
+      }
+      list.append(li);
+    });
+  }
+
+  const api = {
+    el,
+    setSource(src, title2) {
+      lines = src.replace(/\t/g, "  ").split("\n");
+      slots.clear();
+      if (title2) el.querySelector("header b").textContent = title2;
+      render();
+    },
+    setActive(n) {
+      list.querySelectorAll("li.active").forEach((li) => li.classList.remove("active"));
+      if (n == null) return;
+      const li = list.children[n - 1];
+      if (!li) return;
+      li.classList.add("active");
+      li.scrollIntoView({ block: "nearest" });
+    },
+    mark(n, kind, note) {
+      const li = list.children[n - 1];
+      if (!li) return;
+      li.classList.remove("error", "ok", "warn");
+      li.classList.add(kind);
+      if (note) li.dataset.note = note; else delete li.dataset.note;
+    },
+    clearMarks() {
+      list.querySelectorAll("li").forEach((li) => { li.classList.remove("error", "ok", "warn", "active"); delete li.dataset.note; });
+    },
+    slot(n, cfg) {
+      slots.set(n, { ...cfg });
+      render();
+      return slots.get(n);
+    },
+    slotValue: (n) => slots.get(n)?.value ?? null,
+    setSlotValue(n, v) {
+      const s = slots.get(n);
+      if (!s) return;
+      s.value = v;
+      render();
+      s.onPick?.(v);
+    },
+    status(text, kind = "") {
+      status.textContent = text;
+      status.className = `cstatus ${kind}`;
+    },
+    buttons({ run = true, step = true, reset = true } = {}) {
+      el.querySelector(".crun").hidden = !run;
+      el.querySelector(".cstep").hidden = !step;
+      el.querySelector(".creset").hidden = !reset;
+    },
+    show(v) { el.hidden = !v; },
+    collapse(v) { setClosed(!!v); },
+    get collapsed() { return el.classList.contains("closed"); },
+    output(text, kind = "") {
+      const t = Array.isArray(text) ? text.join("\n") : text ?? "";
+      cout.textContent = t;
+      cout.className = `cout ${kind}`;
+      cout.hidden = !t;
+      cout.scrollTop = cout.scrollHeight;
+    },
+  };
+  api.setSource(source);
+  return api;
+}
+
+const CODE_CSS = `
+#code{position:absolute;left:max(16px,env(safe-area-inset-left,0px));bottom:62px;width:min(440px,calc(100% - 400px));max-height:min(52%,520px);display:flex;flex-direction:column;pointer-events:auto;background:color-mix(in srgb,var(--panel) 94%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+#code header{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);font-family:var(--f-mono);font-size:12px}
+#code header b{font-weight:600}
+#code .cstatus{flex:1;color:var(--mute);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#code .cstatus.error{color:var(--error)}#code .cstatus.ok{color:var(--phosphor)}
+#code .ctoggle{cursor:pointer;background:none;border:1px solid var(--line);border-radius:6px;padding:2px 8px;font-size:11px;color:var(--mute)!important}
+#code .lines{margin:0;padding:6px 0;overflow:auto;list-style:none;counter-reset:ln;font-family:var(--f-mono);font-size:12.5px;line-height:1.55}
+#code .lines li{counter-increment:ln;display:flex;align-items:center;padding:0 10px 0 0;border-left:3px solid transparent;white-space:pre;position:relative}
+#code .lines li::before{content:counter(ln);display:inline-block;width:2.6em;text-align:right;padding-right:10px;color:var(--mute);opacity:.6;flex:none}
+#code .lines li code{font:inherit;white-space:pre}
+#code .lines li.active{background:color-mix(in srgb,var(--signal) 16%,transparent);border-left-color:var(--signal)}
+#code .lines li.active::before{content:"▶";color:var(--signal);opacity:1}
+#code .lines li.error{background:color-mix(in srgb,var(--error) 18%,transparent);border-left-color:var(--error)}
+#code .lines li.ok{border-left-color:var(--phosphor)}
+#code .lines li.warn{border-left-color:var(--heat)}
+#code .lines li[data-note]::after{content:attr(data-note);margin-left:12px;font-family:var(--f-ui);font-size:11.5px;color:var(--mute);white-space:nowrap}
+#code .lines li.error[data-note]::after{color:var(--error)}
+#code .slot{font:inherit;font-size:12px;background:var(--panel2);color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:1px 6px;max-width:100%}
+#code .cout{margin:0;padding:6px 10px 6px 14px;max-height:6.5em;overflow:auto;border-top:1px solid var(--line);font-family:var(--f-mono);font-size:12px;line-height:1.45;color:var(--phosphor);white-space:pre-wrap;background:color-mix(in srgb,var(--bg) 70%,transparent)}
+#code .cout::before{content:"stdout";display:block;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+#code .cout.error{color:var(--error)}
+#code footer{display:flex;gap:6px;padding:8px 10px;border-top:1px solid var(--line)}
+#code footer button{padding:5px 10px;font-size:12.5px}
+#code.closed .lines{display:none}
+#code .kw{color:#c792ea}#code .ty{color:#56b4e9}#code .st{color:#e6c07b}#code .nu{color:#f78c6c}#code .cm{color:var(--mute);font-style:italic}#code .pp{color:#ff9e64}
+:root[data-look="paper"] #code .kw{color:#7a3fb0}:root[data-look="paper"] #code .ty{color:#0a6aa1}:root[data-look="paper"] #code .st{color:#8a5a00}:root[data-look="paper"] #code .nu{color:#b5461c}
+@media (max-width:760px){body:has(#code:not([hidden])) .objective{display:none}#code{width:auto;right:max(12px,env(safe-area-inset-right,0px));left:max(12px,env(safe-area-inset-left,0px));top:calc(max(14px,env(safe-area-inset-top,0px)) + 104px);bottom:auto;max-height:calc(56% - 190px)}#code .lines{font-size:11.5px}#code .cout{max-height:4.4em}#code.closed .cstatus{visibility:hidden}#code.closed footer{position:absolute;top:4px;right:64px;padding:0;border:0;gap:4px}#code.closed footer button{padding:3px 9px;font-size:12px}#code.closed .cout{max-height:2.9em;padding-top:3px}#code.closed .cout::before{display:none}}
+`;
+
+return { highlight, createCodePanel, CODE_CSS };
+})();
 /* kit/core/game.mjs */
 __mod["kit/core/game.mjs"] = await (async () => {
 const THREE = __mod["kit/vendor/three/build/three.module.js"];
@@ -86994,6 +87233,7 @@ const { createAudio } = __mod["kit/core/audio.mjs"];
 const { createInteraction } = __mod["kit/core/interact.mjs"];
 const { LOOKS, LOOK_ORDER } = __mod["kit/core/looks.mjs"];
 const { HUD_CSS } = __mod["kit/core/hud-css.mjs"];
+const { CODE_CSS } = __mod["kit/core/code.mjs"];
 
 const h = (tag, attrs = {}, ...kids) => {
   const el = document.createElement(tag);
@@ -87018,11 +87258,11 @@ function storage(key) {
 }
 
 const DAY = 864e5;
-const MECH = { tune: "Tune", predict: "Predict", fermi: "Fermi", break: "Break it", build: "Build", pilot: "Pilot", boss: "Boss" };
+const MECH = { tune: "Tune", predict: "Predict", fermi: "Fermi", break: "Break it", build: "Build", pilot: "Pilot", trace: "Trace", detective: "Detective", boss: "Boss" };
 
 async function playable(def) {
   const style = document.createElement("style");
-  style.textContent = HUD_CSS;
+  style.textContent = HUD_CSS + CODE_CSS;
   document.head.append(style);
   document.title = `${def.title} · Playable`;
 
@@ -87036,7 +87276,7 @@ async function playable(def) {
   const interaction = createInteraction(stage, audio);
   const overlay = h("div", { id: "wtags" });
   hud.append(overlay);
-  const ctx = { stage, B, audio, interaction, THREE, h, overlay };
+  const ctx = { stage, B, audio, interaction, THREE, h, overlay, hud, refocus: (d) => refocus(d) };
   const world = await def.build(ctx);
   const stats = B.finalize();
   world.redraw?.();
@@ -87098,6 +87338,41 @@ async function playable(def) {
     }
   }
 
+  function clearRect() {
+    const W = innerWidth;
+    const H = innerHeight;
+    const c = { l: 0, t: 56, r: W, b: H - 56 };
+    for (const id of ["panel", "code"]) {
+      const el = document.getElementById(id);
+      if (!el || el.hidden || el.offsetParent === null) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 4 || r.height < 4) continue;
+      if (r.width > W * 0.6) {
+        if (r.top > H * 0.3) c.b = Math.min(c.b, r.top - 8);
+        else c.t = Math.max(c.t, r.bottom + 8);
+      } else if (r.left > W * 0.45) c.r = Math.min(c.r, r.left - 8);
+    }
+    return c;
+  }
+  let focusQueued = false;
+  let focusDuration = 0.7;
+  function applyFocus(duration) {
+    const f = (phase !== "map" && level?.focus) || def.camera?.focus;
+    if (f) stage.frame(f.min, f.max, phase === "map" ? null : clearRect(), duration);
+  }
+  function refocus(duration = 0.7) {
+    focusDuration = focusQueued ? Math.min(focusDuration, duration) : duration;
+    if (duration === 0) { focusQueued = false; applyFocus(0); return; }
+    if (focusQueued) return;
+    focusQueued = true;
+    requestAnimationFrame(() => {
+      if (!focusQueued) return;
+      focusQueued = false;
+      applyFocus(focusDuration);
+    });
+  }
+  addEventListener("resize", () => refocus(0));
+
   function showToast(text, ms = 2200) {
     toast.textContent = text;
     toast.hidden = false;
@@ -87151,7 +87426,7 @@ async function playable(def) {
           h("div", {}, h("div", { class: "eyebrow" }, `${def.serial} · ${def.source}`), h("h1", {}, def.title), h("p", { class: "sub" }, def.subtitle)),
           h("div", { class: "meta" },
             h("div", { class: "starsum" }, h("b", {}, String(totalStars())), ` / ${max} ★`),
-            def.verified ? h("div", { class: "verified", title: "Every answer on the sheet is reproduced by the simulation" }, `✓ ${def.verified.passed}/${def.verified.cases} answers verified`) : null)),
+            def.verified ? h("div", { class: "verified", title: def.verified.realityChecks ? "Every answer is reproduced by the model, and every claim about real code was compiled and run" : "Every answer on the sheet is reproduced by the simulation" }, `✓ ${def.verified.passed}/${def.verified.cases} answers verified${def.verified.realityChecks ? ` · ${def.verified.realityChecks} reality checks` : ""}`) : null)),
         due.length ? recallCard(due[0]) : null,
         grid,
         h("footer", {}, h("span", { class: "note" }, "Drag to orbit · orange parts are yours to grab · keys: M map, T toolbox, H hint, 1 2 3 looks"), h("span", { class: "looks" }, LOOK_ORDER.map((k) => h("button", { class: "look", "data-look": k, "aria-pressed": k === stage.look, "aria-label": `${LOOKS[k].label} look`, onclick: (e) => { stage.setLook(k); syncLook(); e.currentTarget.parentNode.querySelectorAll(".look").forEach((b) => b.setAttribute("aria-pressed", b.dataset.look === k)); } })))))
@@ -87161,6 +87436,7 @@ async function playable(def) {
     objective.textContent = "";
     world.setLevel?.(null);
     setReadouts();
+    refocus();
   }
 
   function recallCard(l) {
@@ -87230,6 +87506,7 @@ async function playable(def) {
       objective.textContent = l.goal.text;
       card.replaceChildren(...[head, h("p", {}, l.goal.instructions ?? l.brief), prediction ? h("div", { class: "yourpred" }, "Your prediction: ", h("b", {}, predText(l, prediction.value))) : null, h("div", { class: "status", id: "goalstatus" }, ""), h("div", { class: "actions" }, l.hint ? h("button", { class: "ghost", onclick: (e) => { hintUsed = true; e.currentTarget.replaceWith(h("p", { class: "hint" }, l.hint)); audio.detent(); } }, "Hint (costs a star)") : null, l.goal.manual ? h("button", { class: "primary", onclick: () => finish() }, l.goal.manual) : null)].filter(Boolean));
     }
+    refocus();
   }
 
   function predText(l, v) {
@@ -87294,6 +87571,7 @@ async function playable(def) {
       h("div", { class: "actions" }, h("button", { class: "ghost", onclick: () => startLevel(l) }, "Replay"), h("button", { class: "ghost", onclick: () => openMap() }, "Map"), nextOk ? h("button", { class: "primary", onclick: () => startLevel(next) }, `Next: ${next.title}`) : null),
     ].filter(Boolean));
     if (newUnlock) setTimeout(() => audio.unlockFx(), 1100);
+    refocus();
     revealAnchors = (l.reveal.tags ?? []).map((t) => {
       const el = h("div", { class: "tag" }, t.text);
       tags.append(el);
@@ -87366,9 +87644,19 @@ async function playable(def) {
     perf.textContent = `${stage.perf.fps} fps · ${stage.perf.calls} draws · ${Math.round(stage.perf.tris / 1000)}k tris`;
   }
 
-  async function autoplay(id, { simSeconds = 60 } = {}) {
+  async function autoplay(id, { simSeconds = 60, probe = true } = {}) {
     const l = def.levels.find((x) => x.id === id);
     startLevel(l);
+    let controls = [];
+    if (probe) {
+      phase = "play";
+      renderCard();
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      refocus(0);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      controls = interaction.probe();
+      startLevel(l);
+    }
     if (l.predict) {
       const ans = typeof l.predict.answer === "function" ? l.predict.answer(world) : l.predict.answer;
       prediction = { value: ans, conf: 1 };
@@ -87376,6 +87664,10 @@ async function playable(def) {
     phase = "play";
     renderCard();
     world.solve?.(l.solution ?? {});
+    if (l.goal.manual && !l.goal.check) {
+      await new Promise((r) => setTimeout(r, 0));
+      finish();
+    }
     const t0 = performance.now();
     const step = 1 / 60;
     let simT = 0;
@@ -87384,13 +87676,15 @@ async function playable(def) {
       for (let i = 0; phase === "play" && simT < simSeconds; i++) {
         tick(step * stage.timeScale, step, simT);
         simT += step;
+        await null;
         if (i % 240 === 0) await new Promise((r) => setTimeout(r, 0));
       }
       for (let i = 0; i < 90; i++) tick(step * stage.timeScale, step, simT + i * step);
     } finally {
       manual = false;
+      refocus(0);
     }
-    return { id, solved: phase === "reveal", simSeconds: +simT.toFixed(2), ms: Math.round(performance.now() - t0), stars: progress.stars[id] ?? 0 };
+    return { id, solved: phase === "reveal", simSeconds: +simT.toFixed(2), ms: Math.round(performance.now() - t0), stars: progress.stars[id] ?? 0, controls };
   }
   window.__playable = { stage, world, interaction, def, autoplay, openMap: () => openMap(), startLevel: (id) => startLevel(def.levels.find((l) => l.id === id)), finish: () => finish(), get phase() { return phase; } };
   stage.start();
@@ -87477,7 +87771,7 @@ __mod["kit/core/parts/bench.mjs"] = await (async () => {
 const THREE = __mod["kit/vendor/three/build/three.module.js"];
 const { rbox, chamferCyl, M4, canvasTex } = __mod["kit/core/geo.mjs"];
 
-function bench(B, stage, { width = 14, depth = 8.4, serial = "PLAYABLE-00", subtitle = "" } = {}) {
+function bench(B, stage, { width = 14, depth = 8.4, serial = "PLAYABLE-00", subtitle = "", plate: platePos = null } = {}) {
   const W = width, D = depth;
   B.part(rbox(W, 0.6, D, 0.12, 4), "bench", { pos: [0, -0.3, 0] });
   for (const z of [-D / 2 + 0.3, D / 2 - 0.3]) B.part(rbox(W - 0.4, 0.22, 0.3, 0.05), "graphite", { pos: [0, -0.72, z] });
@@ -87516,7 +87810,7 @@ function bench(B, stage, { width = 14, depth = 8.4, serial = "PLAYABLE-00", subt
     g.fillText(subtitle.toUpperCase(), 52, 200);
     for (const x of [34, w - 34]) for (const y of [34, h - 34]) { g.beginPath(); g.arc(x, y, 9, 0, 7); g.fill(); }
   });
-  B.part(rbox(2.4, 0.05, 0.6, 0.02), new THREE.MeshStandardMaterial({ map: plate.tex, roughness: 0.4, metalness: 0.7 }), { pos: [-W / 2 + 2, 0.03, D / 2 - 1.25] });
+  B.part(rbox(2.4, 0.05, 0.6, 0.02), new THREE.MeshStandardMaterial({ map: plate.tex, roughness: 0.4, metalness: 0.7 }), { pos: platePos ? [platePos[0], 0.03, platePos[1]] : [-W / 2 + 2, 0.03, D / 2 - 1.25] });
 
   const shadowTex = canvasTex(256, 256, (g, w, h) => {
     const gr = g.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w / 2);
@@ -88218,6 +88512,7 @@ const __default = {
   "cases": 8,
   "passed": 8,
   "fields": 15,
+  "realityChecks": 0,
   "failedFields": 0
 };
 return { default: __default };
@@ -88628,7 +88923,7 @@ playable({
   title: "Motor Bench",
   source: "Tutorial 1.1 · Brushed DC motors",
   subtitle: "Eight questions from a real DC-machines tutorial sheet, each one a level you play on a working motor test bench. Predict first, then find out.",
-  camera: { position: [7.2, 7.4, 13.2], target: [0.9, 1.0, 0.6], maxDistance: 26, minAzimuth: -1.3, maxAzimuth: 1.3 },
+  camera: { position: [7.2, 7.4, 13.2], target: [0.9, 1.0, 0.6], maxDistance: 26, minAzimuth: -1.3, maxAzimuth: 1.3, focus: { min: [-6.2, 0, -3.4], max: [5.6, 2.8, 3.3] } },
   verified,
   readouts,
   equations,

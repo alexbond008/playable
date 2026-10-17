@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { rbox, chamferCyl, M4, canvasTex } from "../geo.mjs";
 
-export function bench(B, stage, { width = 14, depth = 8.4, serial = "PLAYABLE-00", subtitle = "" } = {}) {
+export function bench(B, stage, { width = 14, depth = 8.4, serial = "PLAYABLE-00", subtitle = "", plate: platePos = null } = {}) {
   const W = width, D = depth;
   B.part(rbox(W, 0.6, D, 0.12, 4), "bench", { pos: [0, -0.3, 0] });
   for (const z of [-D / 2 + 0.3, D / 2 - 0.3]) B.part(rbox(W - 0.4, 0.22, 0.3, 0.05), "graphite", { pos: [0, -0.72, z] });
@@ -40,7 +40,7 @@ export function bench(B, stage, { width = 14, depth = 8.4, serial = "PLAYABLE-00
     g.fillText(subtitle.toUpperCase(), 52, 200);
     for (const x of [34, w - 34]) for (const y of [34, h - 34]) { g.beginPath(); g.arc(x, y, 9, 0, 7); g.fill(); }
   });
-  B.part(rbox(2.4, 0.05, 0.6, 0.02), new THREE.MeshStandardMaterial({ map: plate.tex, roughness: 0.4, metalness: 0.7 }), { pos: [-W / 2 + 2, 0.03, D / 2 - 1.25] });
+  B.part(rbox(2.4, 0.05, 0.6, 0.02), new THREE.MeshStandardMaterial({ map: plate.tex, roughness: 0.4, metalness: 0.7 }), { pos: platePos ? [platePos[0], 0.03, platePos[1]] : [-W / 2 + 2, 0.03, D / 2 - 1.25] });
 
   const shadowTex = canvasTex(256, 256, (g, w, h) => {
     const gr = g.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w / 2);

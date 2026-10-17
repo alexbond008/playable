@@ -144,7 +144,7 @@ export function createStage(container, cam = {}) {
     look = name;
     const L = LOOKS[name];
     scene.background = new THREE.Color(L.scene.bg);
-    scene.fog = new THREE.Fog(L.scene.bg, 22, 46);
+    scene.fog = new THREE.Fog(L.scene.bg, ...fogRange);
     for (const [m, token] of lookBound) m.color.setHex(L.scene[token]);
     for (const em of edgeMaterials) if (em) { em.color.setHex(L.edge.color); em.opacity = L.edge.opacity; }
     scene.environmentIntensity = L.light.env;
@@ -184,12 +184,42 @@ export function createStage(container, cam = {}) {
   addEventListener("resize", resize);
   resize();
 
+  const presetDir = camera.position.clone().sub(controls.target).normalize();
+  let fogRange = [22, 46];
+  let camTween = null;
+  function frameBox(min, max, clear, duration = 0.7) {
+    const box = new THREE.Box3(new THREE.Vector3(...min), new THREE.Vector3(...max));
+    const center = box.getCenter(new THREE.Vector3());
+    const radius = box.getBoundingSphere(new THREE.Sphere()).radius;
+    const W = container.clientWidth || 1;
+    const H = container.clientHeight || 1;
+    const c = clear ?? { l: 0, t: 0, r: W, b: H };
+    const cw = Math.max(80, c.r - c.l);
+    const ch = Math.max(80, c.b - c.t);
+    const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    const half = Math.min(Math.atan(tanV * (ch / H)), Math.atan(tanV * camera.aspect * (cw / W)));
+    const dist = (radius / Math.sin(half)) * 0.92;
+    controls.maxDistance = Math.max(controls.maxDistance, dist * 1.3);
+    const toPos = center.clone().addScaledVector(presetDir, dist);
+    fogRange = [Math.max(22, dist + radius * 1.2), Math.max(46, dist + radius * 4 + 12)];
+    if (scene.fog) [scene.fog.near, scene.fog.far] = fogRange;
+    camera.far = Math.max(200, fogRange[1] * 1.5);
+    camera.setViewOffset(W, H, W / 2 - (c.l + c.r) / 2, H / 2 - (c.t + c.b) / 2, W, H);
+    if (!duration) {
+      controls.target.copy(center);
+      camera.position.copy(toPos);
+      camTween = null;
+      return;
+    }
+    camTween = { t: 0, duration, fromPos: camera.position.clone(), fromTarget: controls.target.clone(), toPos, toTarget: center };
+  }
+
   const frameFns = [];
   const stage = {
     THREE, renderer, scene, root, camera, controls, composer, bloom, key, MOBILE,
     timeScale: 1,
     perf: { fps: 0, calls: 0, tris: 0, quality: 2 },
-    mat, edgeMat, glow, setLook, setCut,
+    mat, edgeMat, glow, setLook, setCut, frame: frameBox,
     get look() { return look; },
     get cut() { return cut; },
     onLook: (fn) => lookListeners.push(fn),
@@ -200,6 +230,14 @@ export function createStage(container, cam = {}) {
   let frames = 0, acc = 0, slow = 0;
   function frame() {
     const dtReal = Math.min(clock.getDelta(), 0.05);
+    if (camTween) {
+      camTween.t = Math.min(camTween.duration, camTween.t + dtReal);
+      const k = camTween.t / camTween.duration;
+      const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
+      camera.position.lerpVectors(camTween.fromPos, camTween.toPos, e);
+      controls.target.lerpVectors(camTween.fromTarget, camTween.toTarget, e);
+      if (k >= 1) camTween = null;
+    }
     const dt = dtReal * stage.timeScale;
     for (const fn of frameFns) fn(dt, dtReal, clock.elapsedTime);
     controls.update();

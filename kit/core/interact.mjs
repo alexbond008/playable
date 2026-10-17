@@ -51,7 +51,7 @@ export function createInteraction(stage, audio) {
     drag = { t, x: e.clientX, y: e.clientY, moved: 0, data: t.onDragStart?.(e, ray, lastHit) };
     if (drag.data === false) { drag = null; return; }
     stage.controls.enabled = false;
-    el.setPointerCapture(e.pointerId);
+    try { el.setPointerCapture(e.pointerId); } catch {}
   }, { capture: true });
 
   el.addEventListener("pointermove", (e) => {
@@ -88,8 +88,37 @@ export function createInteraction(stage, audio) {
     accent.emissiveIntensity = drag ? 0.7 : hover ? 0.55 : pulse;
   });
 
+  function probe() {
+    const results = [];
+    const r = el.getBoundingClientRect();
+    const v = new THREE.Vector3();
+    for (const t of targets) {
+      if (!t.enabled()) continue;
+      const m = t.meshes.find((x) => x.visible && visibleChain(x));
+      if (!m) continue;
+      if (m.isInstancedMesh) {
+        const mx = new THREE.Matrix4();
+        m.getMatrixAt(m.count - 1, mx);
+        v.setFromMatrixPosition(mx).applyMatrix4(m.matrixWorld);
+      } else m.getWorldPosition(v);
+      v.project(stage.camera);
+      if (Math.abs(v.x) > 1 || Math.abs(v.y) > 1) { results.push({ ok: false, why: "off-screen" }); continue; }
+      const x = r.left + ((v.x + 1) / 2) * r.width;
+      const y = r.top + ((1 - v.y) / 2) * r.height;
+      const fire = (type, dx = 0, dy = 0) => el.dispatchEvent(new PointerEvent(type, { clientX: x + dx, clientY: y + dy, pointerId: 7, bubbles: true, cancelable: true, button: 0, buttons: type === "pointerup" ? 0 : 1 }));
+      fire("pointerdown");
+      const grabbed = !!drag || !t.onDrag;
+      fire("pointermove", 12, -18);
+      fire("pointermove", 30, -40);
+      fire("pointerup", 30, -40);
+      results.push({ ok: grabbed, why: grabbed ? "" : "pointer did not grab it" });
+    }
+    return results;
+  }
+
   return {
     register,
+    probe,
     get dragging() { return !!drag; },
     setEnabled(v) { enabled = v; if (!v) el.style.cursor = ""; },
   };

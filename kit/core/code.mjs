@@ -28,17 +28,19 @@ export function createCodePanel(parent, { title = "main.cpp", source = "", onRun
   const el = document.createElement("section");
   el.id = "code";
   el.setAttribute("aria-label", `Code: ${title}`);
-  el.innerHTML = `<header><b></b><span class="cstatus" aria-live="polite"></span><button class="ctoggle" aria-expanded="true">Hide</button></header><ol class="lines"></ol><footer><button class="crun primary">Run</button><button class="cstep ghost">Step</button><button class="creset ghost">Reset</button></footer>`;
+  el.innerHTML = `<header><b></b><span class="cstatus" aria-live="polite"></span><button class="ctoggle" aria-expanded="true">Hide</button></header><ol class="lines"></ol><pre class="cout" aria-label="Program output" aria-live="polite" hidden></pre><footer><button class="crun primary">Run</button><button class="cstep ghost">Step</button><button class="creset ghost">Reset</button></footer>`;
   parent.append(el);
   el.querySelector("header b").textContent = title;
   const list = el.querySelector(".lines");
   const status = el.querySelector(".cstatus");
   const toggle = el.querySelector(".ctoggle");
-  toggle.addEventListener("click", () => {
-    const open = el.classList.toggle("closed");
-    toggle.textContent = open ? "Code" : "Hide";
-    toggle.setAttribute("aria-expanded", String(!open));
-  });
+  const cout = el.querySelector(".cout");
+  const setClosed = (closed) => {
+    el.classList.toggle("closed", closed);
+    toggle.textContent = closed ? "Code" : "Hide";
+    toggle.setAttribute("aria-expanded", String(!closed));
+  };
+  toggle.addEventListener("click", () => setClosed(!el.classList.contains("closed")));
   el.querySelector(".crun").addEventListener("click", () => onRun?.());
   el.querySelector(".cstep").addEventListener("click", () => onStep?.());
   el.querySelector(".creset").addEventListener("click", () => onReset?.());
@@ -120,6 +122,15 @@ export function createCodePanel(parent, { title = "main.cpp", source = "", onRun
       el.querySelector(".creset").hidden = !reset;
     },
     show(v) { el.hidden = !v; },
+    collapse(v) { setClosed(!!v); },
+    get collapsed() { return el.classList.contains("closed"); },
+    output(text, kind = "") {
+      const t = Array.isArray(text) ? text.join("\n") : text ?? "";
+      cout.textContent = t;
+      cout.className = `cout ${kind}`;
+      cout.hidden = !t;
+      cout.scrollTop = cout.scrollHeight;
+    },
   };
   api.setSource(source);
   return api;
@@ -144,10 +155,13 @@ export const CODE_CSS = `
 #code .lines li[data-note]::after{content:attr(data-note);margin-left:12px;font-family:var(--f-ui);font-size:11.5px;color:var(--mute);white-space:nowrap}
 #code .lines li.error[data-note]::after{color:var(--error)}
 #code .slot{font:inherit;font-size:12px;background:var(--panel2);color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:1px 6px;max-width:100%}
+#code .cout{margin:0;padding:6px 10px 6px 14px;max-height:6.5em;overflow:auto;border-top:1px solid var(--line);font-family:var(--f-mono);font-size:12px;line-height:1.45;color:var(--phosphor);white-space:pre-wrap;background:color-mix(in srgb,var(--bg) 70%,transparent)}
+#code .cout::before{content:"stdout";display:block;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+#code .cout.error{color:var(--error)}
 #code footer{display:flex;gap:6px;padding:8px 10px;border-top:1px solid var(--line)}
 #code footer button{padding:5px 10px;font-size:12.5px}
-#code.closed .lines,#code.closed footer{display:none}
+#code.closed .lines{display:none}
 #code .kw{color:#c792ea}#code .ty{color:#56b4e9}#code .st{color:#e6c07b}#code .nu{color:#f78c6c}#code .cm{color:var(--mute);font-style:italic}#code .pp{color:#ff9e64}
 :root[data-look="paper"] #code .kw{color:#7a3fb0}:root[data-look="paper"] #code .ty{color:#0a6aa1}:root[data-look="paper"] #code .st{color:#8a5a00}:root[data-look="paper"] #code .nu{color:#b5461c}
-@media (max-width:760px){#code{width:auto;right:max(12px,env(safe-area-inset-right,0px));left:max(12px,env(safe-area-inset-left,0px));max-height:34%;bottom:calc(46% + 70px)}}
+@media (max-width:760px){body:has(#code:not([hidden])) .objective{display:none}#code{width:auto;right:max(12px,env(safe-area-inset-right,0px));left:max(12px,env(safe-area-inset-left,0px));top:calc(max(14px,env(safe-area-inset-top,0px)) + 104px);bottom:auto;max-height:calc(56% - 190px)}#code .lines{font-size:11.5px}#code .cout{max-height:4.4em}#code.closed .cstatus{visibility:hidden}#code.closed footer{position:absolute;top:4px;right:64px;padding:0;border:0;gap:4px}#code.closed footer button{padding:3px 9px;font-size:12px}#code.closed .cout{max-height:2.9em;padding-top:3px}#code.closed .cout::before{display:none}}
 `;

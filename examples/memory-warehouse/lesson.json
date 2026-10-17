@@ -1,0 +1,53 @@
+{
+  "id": "memory-warehouse",
+  "serial": "PLAYABLE-02",
+  "title": "Memory Warehouse",
+  "subject": ["computing", "embedded", "c++", "pointers"],
+  "source": {
+    "title": "23WSC318 Tutorial: C++ basics (pointers and structures), Loughborough University",
+    "kind": "tutorial-sheet",
+    "note": "4 questions (Q4 has parts b, c, d). No official answer sheet. Some boxes hold the student's own answers: Q1, Q2 (main only), Q3 (output only), Q4 (code) and Q4d. Those are claims, checked below against the compiler."
+  },
+  "platform": "Facts that depend on the platform (sizeof(std::string), short-string capacity) were measured with Apple clang 21 / libc++ on arm64 and are stated with that platform in the game.",
+  "concepts": [
+    { "id": "null-deref", "title": "Dereferencing a null pointer crashes; assigning null does not", "anchor": "Q1" },
+    { "id": "address-of", "title": "p = &i makes p hold i's address", "anchor": "Q1" },
+    { "id": "call-by-value", "title": "Call by value works on a copy", "anchor": "Q2" },
+    { "id": "call-by-reference", "title": "A reference is another name for the caller's variable", "anchor": "Q2" },
+    { "id": "call-by-address", "title": "A pointer parameter lets the function write through to the caller", "anchor": "Q2" },
+    { "id": "new-paren-vs-bracket", "title": "new T(6) is one T holding 6; new T[6] is six Ts", "anchor": "Q3" },
+    { "id": "heap-bounds-leaks", "title": "Out-of-bounds writes, redefinition, leaks and delete[]", "anchor": "Q3" },
+    { "id": "pointer-to-struct", "title": "A pointer to a struct holds an address; -> follows it", "anchor": "Q4" },
+    { "id": "padding", "title": "Members are aligned; the compiler inserts padding", "anchor": "Q4b" },
+    { "id": "array-stride", "title": "Array elements are sizeof(T) apart", "anchor": "Q4b" },
+    { "id": "sso", "title": "std::string has a fixed size; long text lives in a separate heap block", "anchor": "Q4c" },
+    { "id": "char-arrays", "title": "char arrays store text inline, fixed size, and can overflow", "anchor": "Q4c, Q4d" }
+  ],
+  "misconceptions": [
+    { "concept": "null-deref", "text": "uint32_t* p = 0; is the line that crashes." },
+    { "concept": "call-by-value", "text": "Assigning to a by-value parameter changes the caller's variable." },
+    { "concept": "new-paren-vs-bracket", "text": "new uint32_t(6) allocates six uint32_t values." },
+    { "concept": "pointer-to-struct", "text": "A House* holds a copy of the House." },
+    { "concept": "padding", "text": "sizeof(House) is the sum of its members: 4 + 24 = 28." },
+    { "concept": "sso", "text": "A House holding a longer postcode is a bigger House." },
+    { "concept": "char-arrays", "text": "Fixed-size char arrays avoid overflow (the student's own Q4d answer)." }
+  ],
+  "claims": [
+    { "id": "Q1-line", "by": "student", "claim": "The error is on line 9.", "verdict": "right", "why": "Counting from #include, line 9 is *p = 12;, the first dereference of the null pointer. The process dies there with SIGSEGV." },
+    { "id": "Q1-fix", "by": "student", "claim": "Before line 9 add p = &i", "verdict": "right", "why": "With p = &i; (plus the semicolon) the program prints 12." },
+    { "id": "Q2-main", "by": "student", "claim": "cin >> num1; … AddNumbers(Num1, Num2, &Num3); cout << … Num3", "verdict": "partly", "why": "The call and the display are right. num1 is not Num1 (C++ is case-sensitive) and the sheet's skeleton has no using namespace std;, so cin/cout/endl need std::. clang reports the errors." },
+    { "id": "Q2-body", "by": "student", "claim": "(left blank)", "verdict": "missing", "why": "*c = a + b + *c; is the line that stores the answer through the pointer." },
+    { "id": "Q3-output", "by": "student", "claim": "The program will not compile.", "verdict": "right", "why": "Two compile errors: pHeap is defined twice, and *pHeap[3] applies * to a uint32_t." },
+    { "id": "Q4-code", "by": "student", "claim": "Alice.Lives->Number, sizeof(House), &NewRoad[i]", "verdict": "right", "why": "Compiles and prints Alice Wonderland, 1, 32 bytes per House, addresses 0x20 apart." },
+    { "id": "Q4d", "by": "student", "claim": "char arrays guarantee a fixed size and therefore avoid overflow", "verdict": "partly", "why": "Fixed size and no hidden heap allocation are real advantages on a microcontroller. But fixed arrays are where overflow happens: strcpy into a char[12] runs straight past the end (AddressSanitizer: heap-buffer-overflow). std::string never overflows; its cost is heap allocation that can fail or fragment." }
+  ],
+  "cases": [
+    { "id": "Q1", "solver": "q1", "trust": "derived", "given": {}, "expect": { "crashLine": "9", "fixedOutput": "12" } },
+    { "id": "Q2", "solver": "q2", "trust": "derived", "given": { "input": [3, 4, 5] }, "expect": { "correct": "12", "byValue": "5", "byRefNum2": "12" } },
+    { "id": "Q3", "solver": "q3", "trust": "derived", "given": {}, "expect": { "errorCount": "2", "elements": "1", "firstValue": "6", "fixedOutput": "7" } },
+    { "id": "Q4", "solver": "q4", "trust": "derived", "given": {}, "expect": { "number": "1", "sizeofTenant": "32" } },
+    { "id": "Q4b", "solver": "q4b", "trust": "derived", "given": {}, "expect": { "sizeofHouse": "32", "offsetPostCode": "8", "padding": "4", "stride": "32" } },
+    { "id": "Q4c", "solver": "q4c", "trust": "derived", "given": {}, "expect": { "ssoMax": "22", "len3": "25", "sizeofHouseLong": "32" } },
+    { "id": "Q4d", "solver": "q4d", "trust": "derived", "given": {}, "expect": { "size4": "8", "size12": "16", "size28": "32", "need3": "26" } }
+  ]
+}

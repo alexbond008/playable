@@ -30,7 +30,7 @@ function storage(key) {
 }
 
 const DAY = 864e5;
-const MECH = { tune: "Tune", predict: "Predict", fermi: "Fermi", break: "Break it", build: "Build", pilot: "Pilot", boss: "Boss" };
+const MECH = { tune: "Tune", predict: "Predict", fermi: "Fermi", break: "Break it", build: "Build", pilot: "Pilot", trace: "Trace", detective: "Detective", boss: "Boss" };
 
 export async function playable(def) {
   const style = document.createElement("style");
@@ -48,7 +48,7 @@ export async function playable(def) {
   const interaction = createInteraction(stage, audio);
   const overlay = h("div", { id: "wtags" });
   hud.append(overlay);
-  const ctx = { stage, B, audio, interaction, THREE, h, overlay, hud };
+  const ctx = { stage, B, audio, interaction, THREE, h, overlay, hud, refocus: (d) => refocus(d) };
   const world = await def.build(ctx);
   const stats = B.finalize();
   world.redraw?.();
@@ -110,6 +110,41 @@ export async function playable(def) {
     }
   }
 
+  function clearRect() {
+    const W = innerWidth;
+    const H = innerHeight;
+    const c = { l: 0, t: 56, r: W, b: H - 56 };
+    for (const id of ["panel", "code"]) {
+      const el = document.getElementById(id);
+      if (!el || el.hidden || el.offsetParent === null) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 4 || r.height < 4) continue;
+      if (r.width > W * 0.6) {
+        if (r.top > H * 0.3) c.b = Math.min(c.b, r.top - 8);
+        else c.t = Math.max(c.t, r.bottom + 8);
+      } else if (r.left > W * 0.45) c.r = Math.min(c.r, r.left - 8);
+    }
+    return c;
+  }
+  let focusQueued = false;
+  let focusDuration = 0.7;
+  function applyFocus(duration) {
+    const f = (phase !== "map" && level?.focus) || def.camera?.focus;
+    if (f) stage.frame(f.min, f.max, phase === "map" ? null : clearRect(), duration);
+  }
+  function refocus(duration = 0.7) {
+    focusDuration = focusQueued ? Math.min(focusDuration, duration) : duration;
+    if (duration === 0) { focusQueued = false; applyFocus(0); return; }
+    if (focusQueued) return;
+    focusQueued = true;
+    requestAnimationFrame(() => {
+      if (!focusQueued) return;
+      focusQueued = false;
+      applyFocus(focusDuration);
+    });
+  }
+  addEventListener("resize", () => refocus(0));
+
   function showToast(text, ms = 2200) {
     toast.textContent = text;
     toast.hidden = false;
@@ -163,7 +198,7 @@ export async function playable(def) {
           h("div", {}, h("div", { class: "eyebrow" }, `${def.serial} · ${def.source}`), h("h1", {}, def.title), h("p", { class: "sub" }, def.subtitle)),
           h("div", { class: "meta" },
             h("div", { class: "starsum" }, h("b", {}, String(totalStars())), ` / ${max} ★`),
-            def.verified ? h("div", { class: "verified", title: "Every answer on the sheet is reproduced by the simulation" }, `✓ ${def.verified.passed}/${def.verified.cases} answers verified`) : null)),
+            def.verified ? h("div", { class: "verified", title: def.verified.realityChecks ? "Every answer is reproduced by the model, and every claim about real code was compiled and run" : "Every answer on the sheet is reproduced by the simulation" }, `✓ ${def.verified.passed}/${def.verified.cases} answers verified${def.verified.realityChecks ? ` · ${def.verified.realityChecks} reality checks` : ""}`) : null)),
         due.length ? recallCard(due[0]) : null,
         grid,
         h("footer", {}, h("span", { class: "note" }, "Drag to orbit · orange parts are yours to grab · keys: M map, T toolbox, H hint, 1 2 3 looks"), h("span", { class: "looks" }, LOOK_ORDER.map((k) => h("button", { class: "look", "data-look": k, "aria-pressed": k === stage.look, "aria-label": `${LOOKS[k].label} look`, onclick: (e) => { stage.setLook(k); syncLook(); e.currentTarget.parentNode.querySelectorAll(".look").forEach((b) => b.setAttribute("aria-pressed", b.dataset.look === k)); } })))))
@@ -173,6 +208,7 @@ export async function playable(def) {
     objective.textContent = "";
     world.setLevel?.(null);
     setReadouts();
+    refocus();
   }
 
   function recallCard(l) {
@@ -242,6 +278,7 @@ export async function playable(def) {
       objective.textContent = l.goal.text;
       card.replaceChildren(...[head, h("p", {}, l.goal.instructions ?? l.brief), prediction ? h("div", { class: "yourpred" }, "Your prediction: ", h("b", {}, predText(l, prediction.value))) : null, h("div", { class: "status", id: "goalstatus" }, ""), h("div", { class: "actions" }, l.hint ? h("button", { class: "ghost", onclick: (e) => { hintUsed = true; e.currentTarget.replaceWith(h("p", { class: "hint" }, l.hint)); audio.detent(); } }, "Hint (costs a star)") : null, l.goal.manual ? h("button", { class: "primary", onclick: () => finish() }, l.goal.manual) : null)].filter(Boolean));
     }
+    refocus();
   }
 
   function predText(l, v) {
@@ -306,6 +343,7 @@ export async function playable(def) {
       h("div", { class: "actions" }, h("button", { class: "ghost", onclick: () => startLevel(l) }, "Replay"), h("button", { class: "ghost", onclick: () => openMap() }, "Map"), nextOk ? h("button", { class: "primary", onclick: () => startLevel(next) }, `Next: ${next.title}`) : null),
     ].filter(Boolean));
     if (newUnlock) setTimeout(() => audio.unlockFx(), 1100);
+    refocus();
     revealAnchors = (l.reveal.tags ?? []).map((t) => {
       const el = h("div", { class: "tag" }, t.text);
       tags.append(el);
@@ -378,9 +416,19 @@ export async function playable(def) {
     perf.textContent = `${stage.perf.fps} fps · ${stage.perf.calls} draws · ${Math.round(stage.perf.tris / 1000)}k tris`;
   }
 
-  async function autoplay(id, { simSeconds = 60 } = {}) {
+  async function autoplay(id, { simSeconds = 60, probe = true } = {}) {
     const l = def.levels.find((x) => x.id === id);
     startLevel(l);
+    let controls = [];
+    if (probe) {
+      phase = "play";
+      renderCard();
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      refocus(0);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      controls = interaction.probe();
+      startLevel(l);
+    }
     if (l.predict) {
       const ans = typeof l.predict.answer === "function" ? l.predict.answer(world) : l.predict.answer;
       prediction = { value: ans, conf: 1 };
@@ -388,6 +436,10 @@ export async function playable(def) {
     phase = "play";
     renderCard();
     world.solve?.(l.solution ?? {});
+    if (l.goal.manual && !l.goal.check) {
+      await new Promise((r) => setTimeout(r, 0));
+      finish();
+    }
     const t0 = performance.now();
     const step = 1 / 60;
     let simT = 0;
@@ -396,13 +448,15 @@ export async function playable(def) {
       for (let i = 0; phase === "play" && simT < simSeconds; i++) {
         tick(step * stage.timeScale, step, simT);
         simT += step;
+        await null;
         if (i % 240 === 0) await new Promise((r) => setTimeout(r, 0));
       }
       for (let i = 0; i < 90; i++) tick(step * stage.timeScale, step, simT + i * step);
     } finally {
       manual = false;
+      refocus(0);
     }
-    return { id, solved: phase === "reveal", simSeconds: +simT.toFixed(2), ms: Math.round(performance.now() - t0), stars: progress.stars[id] ?? 0 };
+    return { id, solved: phase === "reveal", simSeconds: +simT.toFixed(2), ms: Math.round(performance.now() - t0), stars: progress.stars[id] ?? 0, controls };
   }
   window.__playable = { stage, world, interaction, def, autoplay, openMap: () => openMap(), startLevel: (id) => startLevel(def.levels.find((l) => l.id === id)), finish: () => finish(), get phase() { return phase; } };
   stage.start();

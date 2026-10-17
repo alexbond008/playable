@@ -2,5 +2,6 @@
   "cases": 8,
   "passed": 8,
   "fields": 15,
+  "realityChecks": 0,
   "failedFields": 0
 }

@@ -26,18 +26,24 @@ Three promises, in priority order:
 
 Work in this order. Don't write scene code before step 4.
 
-1. **Ingest and size it.** Read every file you were given (PDF pages, docx, code, data, Simulink). List what you found: concepts, equations, worked answers, data sets. Pick a tier and tell the user the ETA in one line:
+1. **Ingest and size it.** Run `node scripts/ingest.mjs <files or folders> --out=examples/<name>/source-pack`. It extracts text from docx/pptx/xlsx/Simulink/code/notebooks/data, pulls embedded images into `media/`, skips caches, and ranks what to read first in `inventory.json`. Read PDFs yourself with your file reader (the script only counts their pages). List what you found: concepts, equations, worked answers, code, data sets. Pick a tier and tell the user the ETA in one line:
    - **Quick**: one concept, one level.
    - **Lesson**: 3–8 levels plus a boss (a tutorial sheet, one lecture).
    - **Course**: a whole lab folder or module; propose a Lesson first and list what the full version adds.
    Run `date` at the start and at each step; report when a step runs past twice its share.
 2. **Write `lesson.json`.** Concepts with anchors (`Q3`, `slide 12`), likely misconceptions, and `cases`: every official answer as `given → expect`, with the answer's own decimals. Mark trust: `official` answers are test cases; `student` work is a claim to check.
 3. **Write `model.mjs` and pass the truth gate.** Pure functions, one solver per case, plus the live simulator the game will run. `node scripts/verify-model.mjs <dir>` must print `truth gate passed`. If an official answer fails, fix the model, never the answer. If the answer sheet makes an assumption (Q7's ideal no-load speed), follow it and say so in the level's `note`.
+   - **Check against reality too.** When the source has code, data or anything a machine can run, add `truth.mjs`: compile and run the source's own code with `cpp()` and compare every claim the game makes (sizes, layouts, outputs, which line crashes, which lines fail to compile). Platform-dependent facts (e.g. `sizeof(std::string)`) are stated with their platform in the game.
+   - **Student answers are claims.** When the source contains a student's own answers, check them; the game says which ones are right, and why the others are not.
 4. **Design the levels.** One concept per level; a boss that combines at least three. For each level choose a mechanic (`tune`, `predict`, `fermi`, `break`, `build`, `pilot`, `boss`), write a prediction that targets a real misconception, a goal the student reaches with their hands, a reveal with live equations, the power-up it unlocks, a recall question, and a `solution` the bot can apply.
-5. **Compose the world from the kit.** Use `kit/core/parts/*` and never hand-roll what the kit has. Orange (`accent`) only on what the student can grab. Physics quantities only as overlays (`currentFlow`, `torqueArrow`, `heatGlow`, `fieldLoops`). Static parts are merged automatically; anything that moves or toggles lives in a `dynamic` group.
+5. **Compose the world from the kit.** Read `references/kit.md` first. Use `kit/core/parts/*` and never hand-roll what the kit has; if the lesson needs a part the kit lacks, build it in the kit (a new `parts/*.mjs` with the same craft), not inline in the game. Orange (`accent`) only on what the student can grab. Physics quantities only as overlays (`currentFlow`, `torqueArrow`, `heatGlow`, `fieldLoops`). Static parts are merged automatically; anything that moves or toggles lives in a `dynamic` group.
 6. **Build.** `node scripts/build.mjs <dir>` (runs the truth gate first) writes `<name>.html`. Add `--fragment` for a Claude artifact.
 7. **Playtest like a critic.** `node scripts/playtest.mjs <dir>` plays every level headless at desktop and phone size with fixed-step physics, fails on any unsolved level or console error, checks draw-call budgets, and writes screenshots of every reveal and every look. Read every PNG. Fix, rebuild, repeat until it passes.
 8. **Hand over.** One paragraph: what the game covers, `✓ N/N answers verified`, anything in the source that disagreed with the model.
+
+## Code, memory and other non-physical topics
+
+The object is still the explanation. Memory is a warehouse (`parts/memory.mjs`): slots with real addresses, variables as crates sized by their bytes, padding as foam, pointers as cables, `nullptr` as a hazard pit at 0x0, and a forklift that performs every dereference. Show the source in the code panel (`code.mjs`), step it line by line with the active line highlighted, and make every effect of a line happen physically in the warehouse. Use code-panel slots for fill-in or fix-the-line tasks. Mechanics that fit code: `trace` (predict what the next line does), `detective` (find the line that breaks), `build` (complete the code from choices).
 
 ## Learning design (non-negotiable)
 

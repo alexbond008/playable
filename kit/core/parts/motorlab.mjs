@@ -4,8 +4,8 @@ import { fieldLoops } from "../overlays.mjs";
 
 const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
 
-export function dcMotor(B, stage, { pos = [-3.2, 1.45, 0], facing = 1, shaftLength = 2.3, clip = true, toggle = false } = {}) {
-  const wrap = B.group({ pos: [pos[0], 0, pos[2]], dynamic: toggle, merge: toggle });
+export function dcMotor(B, stage, { pos = [-3.2, 1.45, 0], facing = 1, shaftLength = 2.3, clip = true, toggle = false, parent, rotY = 0, baseY = 0 } = {}) {
+  const wrap = B.group({ parent, pos: [pos[0], baseY, pos[2]], rot: [0, rotY, 0], dynamic: toggle, merge: toggle });
   const motor = B.group({ parent: wrap, pos: [0, pos[1], 0] });
   if (facing < 0) motor.rotation.y = Math.PI;
   const RH = 1.0, LH = 2.4;

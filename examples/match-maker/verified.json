@@ -3,5 +3,16 @@
   "passed": 18,
   "fields": 105,
   "realityChecks": 61,
-  "failedFields": 0
+  "failedFields": 0,
+  "byTrust": {
+    "derived": 11,
+    "student": 3,
+    "simulator": 4
+  },
+  "claims": {
+    "total": 26,
+    "right": 18,
+    "wrong": 5,
+    "partly": 2
+  }
 }

@@ -47,6 +47,21 @@ for (const r of rows) console.log(`${w(r.id, 8)}${w(r.field, 16)}${w(r.expected,
 
 const cases = lesson.cases.length;
 const passedCases = lesson.cases.filter((c) => rows.filter((r) => r.id === c.id).every((r) => r.ok)).length;
-writeFileSync(join(dir, "verified.json"), JSON.stringify({ cases, passed: passedCases, fields: rows.length, realityChecks: truthRows, failedFields: failed }, null, 2) + "\n");
+const byTrust = {};
+for (const c of lesson.cases) {
+  const t = c.trust || "official";
+  byTrust[t] = (byTrust[t] || 0) + 1;
+  if (t === "official" && rows.filter((r) => r.id === c.id).every((r) => r.ok)) byTrust.officialPassed = (byTrust.officialPassed || 0) + 1;
+}
+const claims = lesson.claims || [];
+const VERDICTS = new Set(["right", "wrong", "partly", "missing"]);
+for (const c of claims) {
+  if (!VERDICTS.has(c.verdict) || !String(c.why || "").trim()) {
+    console.log(`claim ${c.id}: needs a verdict (right | wrong | partly | missing) and a why`);
+    failed++;
+  }
+}
+const claimSummary = claims.length ? { total: claims.length, right: claims.filter((c) => c.verdict === "right").length, wrong: claims.filter((c) => c.verdict === "wrong").length, partly: claims.filter((c) => c.verdict === "partly").length } : null;
+writeFileSync(join(dir, "verified.json"), JSON.stringify({ cases, passed: passedCases, fields: rows.length, realityChecks: truthRows, failedFields: failed, byTrust, ...(claimSummary ? { claims: claimSummary } : {}) }, null, 2) + "\n");
 console.log(failed ? `\ntruth gate FAILED: ${failed} field(s) disagree with the answer sheet` : `\ntruth gate passed: ${passedCases}/${cases} answers reproduced${truthRows ? `, ${truthRows} reality checks` : ""}`);
 process.exit(failed ? 1 : 0);

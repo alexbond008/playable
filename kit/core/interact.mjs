@@ -31,10 +31,25 @@ export function createInteraction(stage, audio) {
     return true;
   }
 
+  const accentOff = stage.mat("accentOff");
   function register(meshes, handlers) {
     const t = { meshes, enabled: () => true, ...handlers };
+    for (const m of meshes) m.userData.noMerge = true;
     targets.push(t);
     return t;
+  }
+  function syncAccents() {
+    for (const t of targets) {
+      const on = !!t.enabled();
+      if (t.lastOn === on) continue;
+      t.lastOn = on;
+      for (const m of t.meshes) {
+        m.traverse((o) => {
+          if (!o.isMesh || o.isInstancedMesh) return;
+          if (o.material === accent || o.material === accentOff) o.material = on ? accent : accentOff;
+        });
+      }
+    }
   }
 
   el.addEventListener("pointerdown", (e) => {
@@ -84,6 +99,7 @@ export function createInteraction(stage, audio) {
   el.addEventListener("pointercancel", end);
 
   stage.onFrame((dt, dtReal, t) => {
+    syncAccents();
     const pulse = 0.12 + 0.1 * Math.sin(t * 3);
     accent.emissiveIntensity = drag ? 0.7 : hover ? 0.55 : pulse;
   });

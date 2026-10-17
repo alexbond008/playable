@@ -1,6 +1,22 @@
 import { readFileSync, writeFileSync, mkdirSync, statSync, readdirSync, existsSync } from "node:fs";
 import { join, resolve, basename, extname, relative } from "node:path";
 import { inflateRawSync } from "node:zlib";
+import { readMat } from "./lib/mat.mjs";
+
+function describeValue(v, depth = 0) {
+  if (v == null) return "empty";
+  if (typeof v === "number") return String(+v.toPrecision(6));
+  if (typeof v === "string") return JSON.stringify(v.slice(0, 80));
+  if (Array.isArray(v) || ArrayBuffer.isView(v)) {
+    const a = Array.from(v).filter((x) => typeof x === "number");
+    if (!a.length) return `array[${v.length}]`;
+    let lo = Infinity, hi = -Infinity;
+    for (const x of a) { if (x < lo) lo = x; if (x > hi) hi = x; }
+    return `${a.length} numbers, ${+lo.toPrecision(5)} … ${+hi.toPrecision(5)}; first ${a.slice(0, 4).map((x) => +x.toPrecision(5)).join(", ")}`;
+  }
+  if (typeof v === "object" && depth < 2) return "{ " + Object.entries(v).map(([k, x]) => `${k}: ${describeValue(x, depth + 1)}`).join("; ") + " }";
+  return typeof v;
+}
 
 const args = process.argv.slice(2);
 const outArg = args.find((a) => a.startsWith("--out="));
@@ -267,7 +283,9 @@ for (const file of files) {
       Object.assign(f, pdfInfo(readFileSync(file)));
       f.read = "Read this PDF directly with your file reader (text and page images); this script only counts pages.";
     } else if (TEXT.has(ext)) {
-      f.kind = /\.(csv|tsv)$/.test(ext) || /^[\d\s.,eE+-]+$/m.test(readFileSync(file, "utf8").slice(0, 2000)) ? "data" : "code-or-text";
+      const head = readFileSync(file, "utf8").slice(0, 4000).split(/\r?\n/).filter((l) => l.trim());
+      const numeric = head.filter((l) => /^[\s\d.,eE+\-\t;]+$/.test(l)).length;
+      f.kind = /\.(csv|tsv)$/.test(ext) || ([".txt", ".dat", ".lst"].includes(ext) && numeric > head.length * 0.6) ? "data" : "code-or-text";
       const raw = readFileSync(file, "utf8");
       text = ext === ".ipynb" ? ipynbText(raw) : raw;
       if (f.kind === "data") {
@@ -281,7 +299,14 @@ for (const file of files) {
       f.kind = "matlab-data";
       const head = readFileSync(file).subarray(0, 116).toString("latin1");
       f.header = head.replace(/\0/g, "").trim();
-      f.read = "MAT-file: load it with MATLAB/Octave or scipy.io.loadmat if you need the arrays; variable names often match the lab's .m scripts.";
+      try {
+        const mat = readMat(file);
+        text = Object.entries(mat.vars).map(([k, v]) => `${k}: ${describeValue(v)}`).join("\n");
+        f.variables = Object.keys(mat.vars);
+        f.read = "Variables summarised in the text file; load them in model code with scripts/lib/mat.mjs readMat(path).";
+      } catch (e) {
+        f.read = `MAT-file (could not parse: ${e.message}); try MATLAB/Octave or scipy.io.loadmat.`;
+      }
     }
     if (text != null) {
       f.words = (text.match(/\S+/g) || []).length;

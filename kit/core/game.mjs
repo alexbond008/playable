@@ -6,6 +6,7 @@ import { createInteraction } from "./interact.mjs";
 import { LOOKS, LOOK_ORDER } from "./looks.mjs";
 import { HUD_CSS } from "./hud-css.mjs";
 import { CODE_CSS } from "./code.mjs";
+import { badgeText } from "./badge.mjs";
 
 const h = (tag, attrs = {}, ...kids) => {
   const el = document.createElement(tag);
@@ -106,7 +107,7 @@ export async function playable(def) {
       const show = level ? (level.readouts ?? def.readouts.map((x) => x.key)).includes(key) : !!r.big;
       const hidden = level?.hide?.includes(key) && phase !== "reveal" && phase !== "stars";
       box.hidden = !show;
-      if (show) num.textContent = hidden ? "??" : r.format ? r.format(r.get(world)) : r.get(world).toFixed(r.digits ?? 1);
+      if (show) setDoto(num, hidden ? "??" : r.format ? r.format(r.get(world), world) : r.get(world).toFixed(r.digits ?? 1));
     }
   }
 
@@ -134,7 +135,8 @@ export async function playable(def) {
   let focusQueued = false;
   let focusDuration = 0.7;
   function applyFocus(duration) {
-    const f = (phase !== "map" && level?.focus) || def.camera?.focus;
+    const portrait = innerWidth < innerHeight && innerWidth < 760;
+    const f = (phase !== "map" && ((portrait && level?.phoneFocus) || level?.focus)) || (portrait && def.camera?.phoneFocus) || def.camera?.focus;
     if (f) stage.frame(f.min, f.max, phase === "map" ? null : clearRect(), duration);
   }
   function refocus(duration = 0.7) {
@@ -149,6 +151,13 @@ export async function playable(def) {
     });
   }
   addEventListener("resize", () => refocus(0));
+
+  function setDoto(el, text) {
+    const t = String(text);
+    if (el.dataset.t === t) return;
+    el.dataset.t = t;
+    el.innerHTML = t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/[.,]/g, (c) => `<span class="dp">${c}</span>`);
+  }
 
   function showToast(text, ms = 2200) {
     toast.textContent = text;
@@ -203,7 +212,7 @@ export async function playable(def) {
           h("div", {}, h("div", { class: "eyebrow" }, `${def.serial} · ${def.source}`), h("h1", {}, def.title), h("p", { class: "sub" }, def.subtitle)),
           h("div", { class: "meta" },
             h("div", { class: "starsum" }, h("b", {}, String(totalStars())), ` / ${max} ★`),
-            def.verified ? h("div", { class: "verified", title: def.verified.realityChecks ? "Every answer is reproduced by the model, and every claim about real code was compiled and run" : "Every answer on the sheet is reproduced by the simulation" }, `✓ ${def.verified.passed}/${def.verified.cases} answers verified${def.verified.realityChecks ? ` · ${def.verified.realityChecks} reality checks` : ""}`) : null)),
+            def.verified ? h("div", { class: "verified", title: "Checked by the truth gate before this game was built" }, badgeText(def.verified)) : null)),
         due.length ? recallCard(due[0]) : null,
         grid,
         h("footer", {}, h("span", { class: "note" }, "Drag to orbit · orange parts are yours to grab · keys: M map, T toolbox, H hint, 1 2 3 looks"), h("span", { class: "looks" }, LOOK_ORDER.map((k) => h("button", { class: "look", "data-look": k, "aria-pressed": k === stage.look, "aria-label": `${LOOKS[k].label} look`, onclick: (e) => { stage.setLook(k); syncLook(); e.currentTarget.parentNode.querySelectorAll(".look").forEach((b) => b.setAttribute("aria-pressed", b.dataset.look === k)); } })))))
@@ -270,8 +279,9 @@ export async function playable(def) {
       const ready = () => (commit.disabled = value == null || conf == null);
       let input;
       if (p.type === "number") {
-        const out = h("output", {}, `${fmt(value, p.step)} ${p.unit}`);
-        const range = h("input", { type: "range", min: p.min, max: p.max, step: p.step, value, id: `pred-${l.id}`, "aria-label": p.prompt, oninput: (e) => { value = +e.target.value; out.textContent = `${fmt(value, p.step)} ${p.unit}`; audio.detent(); ready(); } });
+        const out = h("output", {}, "");
+        setDoto(out, `${fmt(value, p.step)} ${p.unit}`);
+        const range = h("input", { type: "range", min: p.min, max: p.max, step: p.step, value, id: `pred-${l.id}`, "aria-label": p.prompt, oninput: (e) => { value = +e.target.value; setDoto(out, `${fmt(value, p.step)} ${p.unit}`); audio.detent(); ready(); } });
         input = h("div", { class: "pred-num" }, out, range);
       } else {
         input = h("div", { class: "opts" }, p.options.map((o, i) => h("button", { class: "opt", "aria-pressed": false, onclick: (e) => { value = i; e.currentTarget.parentNode.querySelectorAll(".opt").forEach((b, j) => b.setAttribute("aria-pressed", j === i)); audio.detent(); ready(); } }, o)));
@@ -463,7 +473,22 @@ export async function playable(def) {
     }
     return { id, solved: phase === "reveal", simSeconds: +simT.toFixed(2), ms: Math.round(performance.now() - t0), stars: progress.stars[id] ?? 0, controls };
   }
-  window.__playable = { stage, world, interaction, def, autoplay, openMap: () => openMap(), startLevel: (id) => startLevel(def.levels.find((l) => l.id === id)), finish: () => finish(), get phase() { return phase; } };
+  async function settle(seconds = 1) {
+    manual = true;
+    try {
+      const step = 1 / 60;
+      for (let i = 0; i < seconds * 60; i++) { tick(step * stage.timeScale, step, i * step); await null; }
+    } finally { manual = false; }
+    refocus(0);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  }
+  async function startPlay(id) {
+    startLevel(def.levels.find((x) => x.id === id));
+    phase = "play";
+    renderCard();
+    await settle(1.5);
+  }
+  window.__playable = { stage, world, interaction, def, autoplay, settle, startPlay, openMap: () => openMap(), startLevel: (id) => startLevel(def.levels.find((l) => l.id === id)), finish: () => finish(), get phase() { return phase; } };
   stage.start();
   syncLook();
   world.redraw?.();

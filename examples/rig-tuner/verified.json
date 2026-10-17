@@ -3,5 +3,14 @@
   "passed": 6,
   "fields": 85,
   "realityChecks": 58,
-  "failedFields": 0
+  "failedFields": 0,
+  "byTrust": {
+    "derived": 6
+  },
+  "claims": {
+    "total": 14,
+    "right": 2,
+    "wrong": 3,
+    "partly": 9
+  }
 }

@@ -84561,7 +84561,30 @@ function store(key, value) {
   }
 }
 
+function patchDotoDecimals() {
+  const C = CanvasRenderingContext2D.prototype;
+  if (C.__playableDoto) return;
+  C.__playableDoto = true;
+  const fill = C.fillText;
+  C.fillText = function (text, x, y, maxWidth) {
+    const s = String(text);
+    if (!/Doto/.test(this.font) || !/[.,]/.test(s)) return fill.call(this, text, x, y, maxWidth);
+    const base = this.font;
+    const mono = base.replace(/Doto/, '"JetBrains Mono"').replace(/\b9\d\d\b/, "800");
+    const parts = s.split(/([.,])/);
+    const widths = parts.map((p, i) => { this.font = i % 2 ? mono : base; return this.measureText(p).width; });
+    const total = widths.reduce((a, b) => a + b, 0);
+    const align = this.textAlign;
+    let cx = align === "center" ? x - total / 2 : align === "right" || align === "end" ? x - total : x;
+    this.textAlign = "left";
+    parts.forEach((p, i) => { this.font = i % 2 ? mono : base; fill.call(this, p, cx, y); cx += widths[i]; });
+    this.font = base;
+    this.textAlign = align;
+  };
+}
+
 function createStage(container, cam = {}) {
+  patchDotoDecimals();
   const MOBILE = isMobile();
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(devicePixelRatio, MOBILE ? 1.5 : 2));
@@ -84630,6 +84653,7 @@ function createStage(container, cam = {}) {
     if (role === "ink") m = new THREE.MeshBasicMaterial({ color: LOOKS[look].scene.ink });
     else if (role === "accent") m = new THREE.MeshStandardMaterial({ color: SEMANTIC.accent, roughness: 0.45, emissive: SEMANTIC.accent, emissiveIntensity: 0 });
     else if (role === "accentDark") m = new THREE.MeshStandardMaterial({ color: 0xd94a16, roughness: 0.5 });
+    else if (role === "accentOff") m = new THREE.MeshStandardMaterial({ color: 0x6f625a, roughness: 0.6 });
     else {
       const [c, r, met] = ROLES[role] ?? [role, 0.7, 0];
       const color = typeof c === "string" ? LOOKS[look].scene[c.split(".")[1]] : c;
@@ -86905,10 +86929,25 @@ function createInteraction(stage, audio) {
     return true;
   }
 
+  const accentOff = stage.mat("accentOff");
   function register(meshes, handlers) {
     const t = { meshes, enabled: () => true, ...handlers };
+    for (const m of meshes) m.userData.noMerge = true;
     targets.push(t);
     return t;
+  }
+  function syncAccents() {
+    for (const t of targets) {
+      const on = !!t.enabled();
+      if (t.lastOn === on) continue;
+      t.lastOn = on;
+      for (const m of t.meshes) {
+        m.traverse((o) => {
+          if (!o.isMesh || o.isInstancedMesh) return;
+          if (o.material === accent || o.material === accentOff) o.material = on ? accent : accentOff;
+        });
+      }
+    }
   }
 
   el.addEventListener("pointerdown", (e) => {
@@ -86958,6 +86997,7 @@ function createInteraction(stage, audio) {
   el.addEventListener("pointercancel", end);
 
   stage.onFrame((dt, dtReal, t) => {
+    syncAccents();
     const pulse = 0.12 + 0.1 * Math.sin(t * 3);
     accent.emissiveIntensity = drag ? 0.7 : hover ? 0.55 : pulse;
   });
@@ -87016,6 +87056,7 @@ const HUD_CSS = `
   --f-dot:"Doto","JetBrains Mono",ui-monospace,monospace;
 }
 [hidden]{display:none!important}
+.dp{font-family:var(--f-mono);font-weight:700}
 html,body{height:100%;overflow:hidden}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14px;transition:background .4s}
 #stage{position:fixed;inset:0}
@@ -87299,6 +87340,25 @@ const CODE_CSS = `
 
 return { highlight, createCodePanel, CODE_CSS };
 })();
+/* kit/core/badge.mjs */
+__mod["kit/core/badge.mjs"] = await (async () => {
+function badgeParts(v) {
+  if (!v) return [];
+  const t = v.byTrust ?? {};
+  const parts = [];
+  if (t.official) parts.push(`✓ ${t.officialPassed ?? t.official}/${t.official} answers verified`);
+  const derived = (t.derived ?? 0) + (t.simulator ?? 0) + (t.student ?? 0);
+  if (!t.official && derived) parts.push(`✓ ${derived} results derived`);
+  else if (!t.official && !derived && v.cases) parts.push(`✓ ${v.passed}/${v.cases} cases verified`);
+  if (v.realityChecks) parts.push(`${v.realityChecks} reality checks`);
+  if (v.claims?.total) parts.push(`your work: ${v.claims.right}/${v.claims.total} right`);
+  return parts;
+}
+
+const badgeText = (v) => badgeParts(v).join(" · ");
+
+return { badgeParts, badgeText };
+})();
 /* kit/core/game.mjs */
 __mod["kit/core/game.mjs"] = await (async () => {
 const THREE = __mod["kit/vendor/three/build/three.module.js"];
@@ -87309,6 +87369,7 @@ const { createInteraction } = __mod["kit/core/interact.mjs"];
 const { LOOKS, LOOK_ORDER } = __mod["kit/core/looks.mjs"];
 const { HUD_CSS } = __mod["kit/core/hud-css.mjs"];
 const { CODE_CSS } = __mod["kit/core/code.mjs"];
+const { badgeText } = __mod["kit/core/badge.mjs"];
 
 const h = (tag, attrs = {}, ...kids) => {
   const el = document.createElement(tag);
@@ -87409,7 +87470,7 @@ async function playable(def) {
       const show = level ? (level.readouts ?? def.readouts.map((x) => x.key)).includes(key) : !!r.big;
       const hidden = level?.hide?.includes(key) && phase !== "reveal" && phase !== "stars";
       box.hidden = !show;
-      if (show) num.textContent = hidden ? "??" : r.format ? r.format(r.get(world)) : r.get(world).toFixed(r.digits ?? 1);
+      if (show) setDoto(num, hidden ? "??" : r.format ? r.format(r.get(world), world) : r.get(world).toFixed(r.digits ?? 1));
     }
   }
 
@@ -87437,7 +87498,8 @@ async function playable(def) {
   let focusQueued = false;
   let focusDuration = 0.7;
   function applyFocus(duration) {
-    const f = (phase !== "map" && level?.focus) || def.camera?.focus;
+    const portrait = innerWidth < innerHeight && innerWidth < 760;
+    const f = (phase !== "map" && ((portrait && level?.phoneFocus) || level?.focus)) || (portrait && def.camera?.phoneFocus) || def.camera?.focus;
     if (f) stage.frame(f.min, f.max, phase === "map" ? null : clearRect(), duration);
   }
   function refocus(duration = 0.7) {
@@ -87452,6 +87514,13 @@ async function playable(def) {
     });
   }
   addEventListener("resize", () => refocus(0));
+
+  function setDoto(el, text) {
+    const t = String(text);
+    if (el.dataset.t === t) return;
+    el.dataset.t = t;
+    el.innerHTML = t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/[.,]/g, (c) => `<span class="dp">${c}</span>`);
+  }
 
   function showToast(text, ms = 2200) {
     toast.textContent = text;
@@ -87506,7 +87575,7 @@ async function playable(def) {
           h("div", {}, h("div", { class: "eyebrow" }, `${def.serial} · ${def.source}`), h("h1", {}, def.title), h("p", { class: "sub" }, def.subtitle)),
           h("div", { class: "meta" },
             h("div", { class: "starsum" }, h("b", {}, String(totalStars())), ` / ${max} ★`),
-            def.verified ? h("div", { class: "verified", title: def.verified.realityChecks ? "Every answer is reproduced by the model, and every claim about real code was compiled and run" : "Every answer on the sheet is reproduced by the simulation" }, `✓ ${def.verified.passed}/${def.verified.cases} answers verified${def.verified.realityChecks ? ` · ${def.verified.realityChecks} reality checks` : ""}`) : null)),
+            def.verified ? h("div", { class: "verified", title: "Checked by the truth gate before this game was built" }, badgeText(def.verified)) : null)),
         due.length ? recallCard(due[0]) : null,
         grid,
         h("footer", {}, h("span", { class: "note" }, "Drag to orbit · orange parts are yours to grab · keys: M map, T toolbox, H hint, 1 2 3 looks"), h("span", { class: "looks" }, LOOK_ORDER.map((k) => h("button", { class: "look", "data-look": k, "aria-pressed": k === stage.look, "aria-label": `${LOOKS[k].label} look`, onclick: (e) => { stage.setLook(k); syncLook(); e.currentTarget.parentNode.querySelectorAll(".look").forEach((b) => b.setAttribute("aria-pressed", b.dataset.look === k)); } })))))
@@ -87573,8 +87642,9 @@ async function playable(def) {
       const ready = () => (commit.disabled = value == null || conf == null);
       let input;
       if (p.type === "number") {
-        const out = h("output", {}, `${fmt(value, p.step)} ${p.unit}`);
-        const range = h("input", { type: "range", min: p.min, max: p.max, step: p.step, value, id: `pred-${l.id}`, "aria-label": p.prompt, oninput: (e) => { value = +e.target.value; out.textContent = `${fmt(value, p.step)} ${p.unit}`; audio.detent(); ready(); } });
+        const out = h("output", {}, "");
+        setDoto(out, `${fmt(value, p.step)} ${p.unit}`);
+        const range = h("input", { type: "range", min: p.min, max: p.max, step: p.step, value, id: `pred-${l.id}`, "aria-label": p.prompt, oninput: (e) => { value = +e.target.value; setDoto(out, `${fmt(value, p.step)} ${p.unit}`); audio.detent(); ready(); } });
         input = h("div", { class: "pred-num" }, out, range);
       } else {
         input = h("div", { class: "opts" }, p.options.map((o, i) => h("button", { class: "opt", "aria-pressed": false, onclick: (e) => { value = i; e.currentTarget.parentNode.querySelectorAll(".opt").forEach((b, j) => b.setAttribute("aria-pressed", j === i)); audio.detent(); ready(); } }, o)));
@@ -87766,7 +87836,22 @@ async function playable(def) {
     }
     return { id, solved: phase === "reveal", simSeconds: +simT.toFixed(2), ms: Math.round(performance.now() - t0), stars: progress.stars[id] ?? 0, controls };
   }
-  window.__playable = { stage, world, interaction, def, autoplay, openMap: () => openMap(), startLevel: (id) => startLevel(def.levels.find((l) => l.id === id)), finish: () => finish(), get phase() { return phase; } };
+  async function settle(seconds = 1) {
+    manual = true;
+    try {
+      const step = 1 / 60;
+      for (let i = 0; i < seconds * 60; i++) { tick(step * stage.timeScale, step, i * step); await null; }
+    } finally { manual = false; }
+    refocus(0);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  }
+  async function startPlay(id) {
+    startLevel(def.levels.find((x) => x.id === id));
+    phase = "play";
+    renderCard();
+    await settle(1.5);
+  }
+  window.__playable = { stage, world, interaction, def, autoplay, settle, startPlay, openMap: () => openMap(), startLevel: (id) => startLevel(def.levels.find((l) => l.id === id)), finish: () => finish(), get phase() { return phase; } };
   stage.start();
   syncLook();
   world.redraw?.();
@@ -88046,8 +88131,8 @@ const { fieldLoops } = __mod["kit/core/overlays.mjs"];
 
 const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
 
-function dcMotor(B, stage, { pos = [-3.2, 1.45, 0], facing = 1, shaftLength = 2.3, clip = true, toggle = false } = {}) {
-  const wrap = B.group({ pos: [pos[0], 0, pos[2]], dynamic: toggle, merge: toggle });
+function dcMotor(B, stage, { pos = [-3.2, 1.45, 0], facing = 1, shaftLength = 2.3, clip = true, toggle = false, parent, rotY = 0, baseY = 0 } = {}) {
+  const wrap = B.group({ parent, pos: [pos[0], baseY, pos[2]], rot: [0, rotY, 0], dynamic: toggle, merge: toggle });
   const motor = B.group({ parent: wrap, pos: [0, pos[1], 0] });
   if (facing < 0) motor.rotation.y = Math.PI;
   const RH = 1.0, LH = 2.4;
@@ -88593,7 +88678,11 @@ const __default = {
   "passed": 8,
   "fields": 15,
   "realityChecks": 0,
-  "failedFields": 0
+  "failedFields": 0,
+  "byTrust": {
+    "official": 8,
+    "officialPassed": 8
+  }
 };
 return { default: __default };
 })();

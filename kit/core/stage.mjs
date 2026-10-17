@@ -37,7 +37,30 @@ function store(key, value) {
   }
 }
 
+function patchDotoDecimals() {
+  const C = CanvasRenderingContext2D.prototype;
+  if (C.__playableDoto) return;
+  C.__playableDoto = true;
+  const fill = C.fillText;
+  C.fillText = function (text, x, y, maxWidth) {
+    const s = String(text);
+    if (!/Doto/.test(this.font) || !/[.,]/.test(s)) return fill.call(this, text, x, y, maxWidth);
+    const base = this.font;
+    const mono = base.replace(/Doto/, '"JetBrains Mono"').replace(/\b9\d\d\b/, "800");
+    const parts = s.split(/([.,])/);
+    const widths = parts.map((p, i) => { this.font = i % 2 ? mono : base; return this.measureText(p).width; });
+    const total = widths.reduce((a, b) => a + b, 0);
+    const align = this.textAlign;
+    let cx = align === "center" ? x - total / 2 : align === "right" || align === "end" ? x - total : x;
+    this.textAlign = "left";
+    parts.forEach((p, i) => { this.font = i % 2 ? mono : base; fill.call(this, p, cx, y); cx += widths[i]; });
+    this.font = base;
+    this.textAlign = align;
+  };
+}
+
 export function createStage(container, cam = {}) {
+  patchDotoDecimals();
   const MOBILE = isMobile();
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(devicePixelRatio, MOBILE ? 1.5 : 2));
@@ -106,6 +129,7 @@ export function createStage(container, cam = {}) {
     if (role === "ink") m = new THREE.MeshBasicMaterial({ color: LOOKS[look].scene.ink });
     else if (role === "accent") m = new THREE.MeshStandardMaterial({ color: SEMANTIC.accent, roughness: 0.45, emissive: SEMANTIC.accent, emissiveIntensity: 0 });
     else if (role === "accentDark") m = new THREE.MeshStandardMaterial({ color: 0xd94a16, roughness: 0.5 });
+    else if (role === "accentOff") m = new THREE.MeshStandardMaterial({ color: 0x6f625a, roughness: 0.6 });
     else {
       const [c, r, met] = ROLES[role] ?? [role, 0.7, 0];
       const color = typeof c === "string" ? LOOKS[look].scene[c.split(".")[1]] : c;

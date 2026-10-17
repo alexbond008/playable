@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, copyFi
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
+import { badgeText } from "../kit/core/badge.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const out = join(root, "docs");
@@ -39,7 +40,7 @@ for (const ex of examples) {
   const img = ex.cover ? image(join(ex.dir, "shots", ex.cover), join(out, "img", `${ex.d}.jpg`)) : null;
   ex.img = img ? `img/${img.split("/").pop()}` : "";
   const v = ex.verified;
-  const badge = v ? `${v.passed}/${v.cases} answers verified${v.realityChecks ? ` · ${v.realityChecks} reality checks` : ""}` : "";
+  const badge = v ? badgeText(v).replace(/^✓ /, "") : "";
   const source = (ex.lesson.source?.title || "").split(/[,(—–]/)[0].trim();
   cards.push(`<a class="card" href="games/${ex.d}.html">
       <div class="shot">${ex.img ? `<img src="${ex.img}" alt="${esc(ex.lesson.title)}, a reveal moment" loading="lazy">` : ""}</div>

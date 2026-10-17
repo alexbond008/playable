@@ -97,6 +97,10 @@ try {
     await evaluate("localStorage.clear(), 1", false);
     const ids = await evaluate("window.__playable.def.levels.map(l => l.id)", false);
     for (const id of ids.filter((x) => !only.length || only.includes(x))) {
+      if (!args.includes("--no-play-shots")) {
+        await evaluate(`window.__playable.startPlay(${JSON.stringify(id)})`);
+        await shot(join(shots, `${label}-${id}-play.png`));
+      }
       const r = await evaluate(`window.__playable.autoplay(${JSON.stringify(id)}, { simSeconds: 60 })`);
       await new Promise((res) => setTimeout(res, 1200));
       // count this level's draws exactly: one render with fresh counters (the rolling perf sample lags on slow headless frames)

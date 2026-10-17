@@ -8,6 +8,7 @@ export const HUD_CSS = `
   --f-dot:"Doto","JetBrains Mono",ui-monospace,monospace;
 }
 [hidden]{display:none!important}
+.dp{font-family:var(--f-mono);font-weight:700}
 html,body{height:100%;overflow:hidden}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14px;transition:background .4s}
 #stage{position:fixed;inset:0}

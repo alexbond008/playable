@@ -35,6 +35,7 @@ function parseSpecifiers(list) {
 }
 
 function transform(code, file) {
+  if (file.endsWith(".json")) return { code: `const __default = ${code.trim()};`, deps: [], exportsOut: [{ exported: "default", local: "__default" }], reexports: [], starExports: [] };
   const deps = [];
   const exportsOut = [];
   const reexports = [];

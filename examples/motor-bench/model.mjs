@@ -69,6 +69,7 @@ export function createMotorSim(init = {}) {
   function currents(omega) {
     if (s.drive === "brake") return [-(s.K * omega) / (s.R + s.Rb)];
     if (s.drive === "current") return [s.Iset];
+    if (s.drive === "auto") return [(s.load + s.Fc * omega) / s.K];
     const I1 = (s.V - s.K * omega) / s.R;
     if (!s.twin) return [I1];
     return [I1, (s.V - s.twin.K * omega) / s.twin.R];
@@ -93,17 +94,32 @@ export function createMotorSim(init = {}) {
       s.T2 = s.twin ? s.twin.K * Is[1] : 0;
       s.E = s.K * s.omega;
       if (s.drive === "brake") {
-        const p = s.I * s.I * s.Rb;
-        s.brakeHeat += p * h;
-        s.peakBrakeT = Math.max(s.peakBrakeT, Math.abs(s.T));
+        s.brakeHeat += s.I * s.I * s.Rb * h;
+        s.brakeTime += h;
+        if (s.stopTime == null && s.omega < 0.02 * s.omega0) s.stopTime = s.brakeTime;
       }
     }
     const p = s.drive === "brake" ? s.I * s.I * s.Rb : 0;
     s.brakePower = p;
     s.tempC += dt * (p * 3.2 - (s.tempC - 25) * 0.28);
-    if (s.drive === "current" || s.dyno === "hold") s.V = s.K * s.omega + s.I * s.R;
+    if (s.drive === "current" || s.drive === "auto") s.V = s.K * s.omega + s.I * s.R;
     return s;
   }
 
-  return { state: s, step };
+  function brake(on) {
+    if (on && s.drive !== "brake") {
+      s.driveBefore = s.drive;
+      s.drive = "brake";
+      s.omega0 = s.omega;
+      s.brakeT0 = (s.K * s.K * s.omega) / (s.R + s.Rb);
+      s.brakeI0 = (s.K * s.omega) / (s.R + s.Rb);
+      s.brakeHeat = 0;
+      s.brakeTime = 0;
+      s.stopTime = null;
+    } else if (!on && s.drive === "brake") {
+      s.drive = s.driveBefore || "voltage";
+    }
+  }
+
+  return { state: s, step, brake };
 }

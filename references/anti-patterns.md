@@ -24,3 +24,18 @@ Each rule here comes from something that actually went wrong. Add a new entry ev
 ## Physics and truth
 
 - **A curb input for a second-order lesson.** Base excitation keeps overshoot at ζ = 1 and makes a stiff damper "settle" instantly at ~10 g, which teaches the wrong thing. Use the textbook-clean input (step force) for the concept being taught, and check the numbers in a script before building the level.
+
+## Interaction
+
+- **Orbit controls stealing the grab.** A drag on a weight orbited the camera. The grab handler must listen to `pointerdown` in the capture phase and call `stopImmediatePropagation()` when it hits a grabbable, so OrbitControls never sees the event.
+- **CSS `display` beating `hidden`.** The world map stayed open in the standalone build because `#modal { display: grid }` overrides the `hidden` attribute; the artifact frame's reset hid the bug. The HUD CSS starts with `[hidden]{display:none!important}`.
+- **A flickering physical measurement.** At ~20 fps the stacked weights jittered, the hanging load flickered between 4 and 5 Nm, and the motor settled at the wrong speed. Any reading taken from physics is debounced (stable for 0.25 s) before the model sees it, and centring nudges never teleport a resting body every frame.
+- **State leaking between levels.** The debounced load from Q4 survived into Q5's spin-up and the motor started below 2500 rpm. Every level reset clears every piece of derived state, including debounce buffers.
+- **Hold timers that reset on one bad frame.** A goal that must hold for 1.5 s now decays at twice the rate it fills instead of resetting to zero.
+
+## Testing
+
+- **A bot that depends on frame rate.** Headless Chrome renders on the CPU at a few fps, so wall-clock waits timed out. The playtest bot steps the simulation in fixed 1/60 s ticks and renders once for the screenshot.
+- **Wall-clock timers inside a bot solution.** `setTimeout(() => brake(), 300)` never lined up with simulated time. Solutions act instantly.
+- **Screenshot coordinates ≠ CSS pixels.** The page was 1920 px wide and the screenshot 1568 px; clicks computed in CSS pixels missed. Scale by `screenshotWidth / innerWidth`.
+- **Audio in tests.** The headless browser played the game's sound through the user's speakers. Always launch test browsers with `--mute-audio`.

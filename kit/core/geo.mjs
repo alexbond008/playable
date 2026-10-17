@@ -44,6 +44,7 @@ export function createBuilder(stage) {
   function group(opts = {}) {
     const g = new THREE.Group();
     if (opts.dynamic) g.userData.dynamic = true;
+    if (opts.merge) g.userData.merge = true;
     if (opts.name) g.name = opts.name;
     return place(g, opts);
   }
@@ -80,22 +81,87 @@ export function createBuilder(stage) {
     mesh.add(e);
   }
 
+  const nearestDynamic = (obj, root) => {
+    for (let o = obj; o && o !== root; o = o.parent) if (o.userData.dynamic) return o;
+    return null;
+  };
+
+  function prepGeometry(geometry, matrix) {
+    const g = geometry.index ? geometry.toNonIndexed() : geometry.clone();
+    for (const name of Object.keys(g.attributes)) if (!["position", "normal", "uv"].includes(name)) g.deleteAttribute(name);
+    if (!g.attributes.uv) g.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+    if (!g.attributes.normal) g.computeVertexNormals();
+    return g.applyMatrix4(matrix);
+  }
+
+  function mergeGroups(root) {
+    const groups = [];
+    root.traverse((o) => { if (o.userData.dynamic && o.userData.merge) groups.push(o); });
+    for (const grp of groups) {
+      const inv = grp.matrixWorld.clone().invert();
+      const meshBuckets = new Map();
+      const edgeBuckets = new Map();
+      const remove = [];
+      grp.traverse((o) => {
+        if (!o.isMesh || o.isInstancedMesh || o.userData.keep || o.userData.noMerge) return;
+        if (nearestDynamic(o.parent, root) !== grp && !(o === grp)) return;
+        const local = inv.clone().multiply(o.matrixWorld);
+        const key = o.material.uuid;
+        if (!meshBuckets.has(key)) meshBuckets.set(key, { material: o.material, cast: o.castShadow, geos: [] });
+        meshBuckets.get(key).geos.push(prepGeometry(o.geometry, local));
+        if (o.userData.edges) {
+          const em = stage.edgeMat(o.userData.clip);
+          if (!edgeBuckets.has(em.uuid)) edgeBuckets.set(em.uuid, { material: em, geos: [] });
+          edgeBuckets.get(em.uuid).geos.push(new THREE.EdgesGeometry(o.geometry, o.userData.thresh).applyMatrix4(local));
+        }
+        remove.push(o);
+      });
+      if (remove.length < 2) continue;
+      for (const o of remove) o.parent.remove(o);
+      for (const { material, cast, geos } of meshBuckets.values()) {
+        const m = new THREE.Mesh(mergeGeometries(geos, false), material);
+        m.castShadow = cast;
+        m.receiveShadow = true;
+        m.userData.keep = true;
+        grp.add(m);
+      }
+      for (const { material, geos } of edgeBuckets.values()) {
+        const l = new THREE.LineSegments(mergeGeometries(geos, false), material);
+        l.raycast = () => {};
+        l.userData.keep = true;
+        grp.add(l);
+      }
+    }
+  }
+
   function finalize(root = stage.root) {
+    root.updateMatrixWorld(true);
+    mergeGroups(root);
     root.updateMatrixWorld(true);
     const meshBuckets = new Map();
     const edgeBuckets = new Map();
     const remove = [];
+    const expandable = [];
+    root.traverse((o) => {
+      if (o.isInstancedMesh && !o.userData.keep && !isDynamic(o, root) && o.count * (o.geometry.attributes.position.count) < 24000 && !o.instanceColor) expandable.push(o);
+    });
+    for (const im of expandable) {
+      const mx = new THREE.Matrix4();
+      const key = im.material.uuid + (im.castShadow ? "c" : "n");
+      if (!meshBuckets.has(key)) meshBuckets.set(key, { material: im.material, cast: im.castShadow, geos: [] });
+      for (let i = 0; i < im.count; i++) {
+        im.getMatrixAt(i, mx);
+        meshBuckets.get(key).geos.push(prepGeometry(im.geometry, im.matrixWorld.clone().multiply(mx)));
+      }
+      remove.push(im);
+    }
     root.traverse((o) => {
       if (!o.isMesh || o.isInstancedMesh || o.userData.keep) return;
       if (isDynamic(o, root)) {
         if (o.userData.edges && !o.children.some((c) => c.userData.edgeLine)) attachEdges(o);
         return;
       }
-      const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
-      for (const name of Object.keys(g.attributes)) if (!["position", "normal", "uv"].includes(name)) g.deleteAttribute(name);
-      if (!g.attributes.uv) g.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array((g.attributes.position.count) * 2), 2));
-      if (!g.attributes.normal) g.computeVertexNormals();
-      g.applyMatrix4(o.matrixWorld);
+      const g = prepGeometry(o.geometry, o.matrixWorld);
       const key = o.material.uuid + (o.castShadow ? "c" : "n");
       if (!meshBuckets.has(key)) meshBuckets.set(key, { material: o.material, cast: o.castShadow, geos: [] });
       meshBuckets.get(key).geos.push(g);
@@ -123,6 +189,15 @@ export function createBuilder(stage) {
       merged.add(l);
     }
     stage.scene.add(merged);
+    if (stage.MOBILE) {
+      const sphere = new THREE.Sphere();
+      stage.scene.traverse((o) => {
+        if (!o.isMesh || !o.castShadow || o.parent === merged) return;
+        if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+        sphere.copy(o.geometry.boundingSphere).applyMatrix4(o.matrixWorld);
+        if (sphere.radius < 0.35) o.castShadow = false;
+      });
+    }
     return { meshes: meshBuckets.size, edges: edgeBuckets.size, removed: remove.length };
   }
 

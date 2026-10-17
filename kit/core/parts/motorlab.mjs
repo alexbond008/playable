@@ -5,7 +5,7 @@ import { fieldLoops } from "../overlays.mjs";
 const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
 
 export function dcMotor(B, stage, { pos = [-3.2, 1.45, 0], facing = 1, shaftLength = 2.3, clip = true, toggle = false } = {}) {
-  const wrap = B.group({ pos: [pos[0], 0, pos[2]], dynamic: toggle });
+  const wrap = B.group({ pos: [pos[0], 0, pos[2]], dynamic: toggle, merge: toggle });
   const motor = B.group({ parent: wrap, pos: [0, pos[1], 0] });
   if (facing < 0) motor.rotation.y = Math.PI;
   const RH = 1.0, LH = 2.4;
@@ -49,7 +49,7 @@ export function dcMotor(B, stage, { pos = [-3.2, 1.45, 0], facing = 1, shaftLeng
   });
   B.part(new THREE.PlaneGeometry(0.62, 0.2), new THREE.MeshStandardMaterial({ map: plate.tex, roughness: 0.6 }), { parent: motor, pos: [-0.3, RH + 0.18, facing > 0 ? 0.381 : -0.381], rot: [0, facing > 0 ? 0 : Math.PI, 0], edges: false, cast: false, dynamic: false });
 
-  const rotor = B.group({ parent: motor, dynamic: true });
+  const rotor = B.group({ parent: motor, dynamic: true, merge: true });
   const lam = [];
   const lamCol = [];
   for (let i = 0; i < 34; i++) {
@@ -94,7 +94,7 @@ export function dcMotor(B, stage, { pos = [-3.2, 1.45, 0], facing = 1, shaftLeng
 }
 
 export function dyno(B, stage, { x = 0, axisY = 1.45, armLength = 2.4 } = {}) {
-  const spin = B.group({ pos: [x, axisY, 0], dynamic: true });
+  const spin = B.group({ pos: [x, axisY, 0], dynamic: true, merge: true });
   B.part(toX(lathe([[0.12, -0.16], [1.1, -0.16], [1.18, -0.1], [1.18, 0.1], [1.1, 0.16], [0.4, 0.16], [0.32, 0.24], [0.12, 0.24]], 80)), "clay", { parent: spin });
   const holes = [];
   for (let k = 0; k < 6; k++) {

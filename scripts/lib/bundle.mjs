@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { gzipSync } from "node:zlib";
 import { dirname, resolve, relative, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,6 +13,24 @@ export const ALIASES = {
 };
 
 const IDENT = /^[A-Za-z_$][\w$]*$/;
+
+// Rapier's compat build inlines its WASM as one base64 literal (~4.1 MB). Gzip the
+// raw bytes at build time and inflate them with DecompressionStream at module load,
+// so the single-file game stays offline with ~2.5 MB less to download and parse.
+function packRapier(code) {
+  const lit = /([\w$]+)\.toByteArray\("([A-Za-z0-9+/=]{100000,})"\)/g;
+  const found = [...code.matchAll(lit)];
+  if (found.length !== 1) throw new Error(`rapier: expected one inlined WASM literal, found ${found.length}; update packRapier in scripts/lib/bundle.mjs`);
+  const gz = gzipSync(Buffer.from(found[0][2], "base64"), { level: 9 }).toString("base64");
+  const inflate = `const __rapierWasm = await (async () => {
+  const s = atob("${gz}"), b = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i);
+  return new Uint8Array(await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
+})();
+`;
+  return inflate + code.replace(found[0][0], () => "__rapierWasm");
+}
+
 
 function resolveSpec(spec, fromFile) {
   if (spec in ALIASES && !spec.endsWith("/")) return ALIASES[spec];
@@ -116,7 +135,8 @@ export function bundle(entry) {
   const visit = (file, stack = []) => {
     if (mods.has(file)) return;
     if (stack.includes(file)) throw new Error(`circular import: ${[...stack, file].map((f) => relative(ROOT, f)).join(" → ")}`);
-    const t = transform(readFileSync(file, "utf8"), file);
+    const src = readFileSync(file, "utf8");
+    const t = transform(file === ALIASES.rapier ? packRapier(src) : src, file);
     for (const d of t.deps) visit(d, [...stack, file]);
     mods.set(file, t);
     order.push(file);

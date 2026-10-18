@@ -74,6 +74,8 @@ export async function playable(def) {
   const toolboxBtn = h("button", { class: "tool", onclick: () => toggleToolbox() }, "Toolbox");
   const mapBtn = h("button", { class: "tool", onclick: () => openMap() }, "Map");
   const tools = h("nav", { id: "tools" }, mapBtn, toolboxBtn, soundBtn, h("span", { class: "looks" }, lookBtns));
+  // Uppercase labels would turn η into Η ("H") and ω into Ω: keep Greek letters in their own case.
+  const keepGreek = (label) => String(label).split(/([\u0370-\u03FF]+)/).filter(Boolean).map((t) => (/[\u0370-\u03FF]/.test(t) ? h("span", { class: "gk" }, t) : t));
   const perf = h("div", { id: "perf" });
   // Dev counter: hidden for players; #perf in the URL or the ` key shows it.
   perf.hidden = !/perf/.test(location.hash + location.search);
@@ -93,7 +95,7 @@ export async function playable(def) {
     const num = h("em", {}, "—");
     const box = r.big
       ? h("div", { class: "bigbox" }, h("span", { class: "num" }, num), h("span", { class: "unit" }, r.unit))
-      : h("div", {}, h("i", {}, r.label), num, r.unit ? ` ${r.unit}` : "");
+      : h("div", {}, h("i", {}, ...keepGreek(r.label)), num, r.unit ? ` ${r.unit}` : "");
     (r.big ? big : minis).append(box);
     readoutEls.set(r.key, { r, num, box });
   }

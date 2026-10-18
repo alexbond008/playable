@@ -1,0 +1,93 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Doto:wght@700;900&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+:root{--bg:#0E0F10;--panel:#17181B;--line:#2C2E33;--ink:#ECE7DC;--mute:#8D8F96;--accent:#FF5A1F;--ok:#3CFF8F}
+*{box-sizing:border-box}
+html,body{margin:0;width:1280px;height:800px;overflow:hidden;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans Condensed",sans-serif}
+body{background:radial-gradient(1200px 700px at 30% 40%,#1A1B1F,#0B0C0D)}
+.scene{position:absolute;inset:0}
+#paper{position:absolute;left:84px;top:70px;width:452px;height:640px;background:#fff url(page.jpg) center/cover;box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.08);transform-origin:50% 60%;border-radius:3px}
+#hl{position:absolute;left:4%;width:93%;top:27.9%;height:10.6%;border:3px solid var(--accent);border-radius:6px;background:rgba(255,90,31,.12);opacity:0}
+#hlTag{position:absolute;right:-12px;top:-15px;background:var(--accent);color:#120800;font:700 13px "JetBrains Mono",monospace;padding:3px 8px;border-radius:4px;white-space:nowrap}
+#file{position:absolute;left:84px;top:724px;font:500 15px "JetBrains Mono",monospace;color:var(--mute)}
+#file b{color:var(--ink);font-weight:500}
+#term{position:absolute;left:600px;top:150px;width:600px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 30px 80px rgba(0,0,0,.5);overflow:hidden}
+#term .bar{height:34px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:0 14px}
+#term .bar i{width:11px;height:11px;border-radius:50%;background:#3a3c42}
+#term .bar span{margin-left:10px;font:500 12px "JetBrains Mono",monospace;color:var(--mute)}
+#term .body{padding:22px 24px 26px;font:400 16.5px/1.65 "JetBrains Mono",monospace;min-height:330px}
+.prompt{color:var(--ink)}
+.prompt .c{color:var(--accent)}
+.caret{display:inline-block;width:9px;height:19px;background:var(--ink);vertical-align:-3px;margin-left:2px}
+.line{display:grid;grid-template-columns:22px 112px 1fr;opacity:0;transform:translateY(6px);color:var(--ink)}
+.line .k{color:var(--mute)}
+.line .d{color:var(--ok)}
+.line .v b{color:var(--ok);font-weight:500}
+#out{margin-top:16px;display:grid;gap:4px}
+#brand{position:absolute;left:600px;top:84px;font:900 34px Doto,monospace;color:var(--accent);letter-spacing:.04em}
+#brand small{font:500 14px "JetBrains Mono",monospace;color:var(--mute);margin-left:14px;letter-spacing:.08em}
+#fade{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none}
+#outro{opacity:0;display:grid;place-content:center;text-align:center;gap:26px}
+#outro h1{margin:0;font:900 76px/1.05 Doto,monospace;letter-spacing:.02em}
+#outro h1 em{font-style:normal;color:var(--accent)}
+#outro .cmd{justify-self:center;font:500 22px "JetBrains Mono",monospace;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 22px}
+#outro .cmd span{color:var(--mute)}
+#outro p{margin:0;color:var(--mute);font:500 18px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.02em}
+.dp{font-family:"JetBrains Mono",monospace}
+</style>
+<div class="scene" id="intro">
+  <div id="paper"><div id="hl"><span id="hlTag">Q3 → Level 3</span></div></div>
+  <div id="file">📄 <b>Tutorial 1.1.pdf</b> · brushed DC motors</div>
+  <div id="brand">PLAYABLE<small>AGENT SKILL</small></div>
+  <div id="term">
+    <div class="bar"><i></i><i></i><i></i><span>claude · ~/uni/machines</span></div>
+    <div class="body">
+      <div class="prompt"><span class="c">&gt;</span> <span id="typed"></span><span class="caret" id="caret"></span></div>
+      <div id="out">
+        <div class="line"><span class="d">✓</span><span class="k">ingest</span><span class="v">8 questions · 8 worked answers</span></div>
+        <div class="line"><span class="d">✓</span><span class="k">truth gate</span><span class="v"><b>8/8</b> answers reproduced</span></div>
+        <div class="line"><span class="d">✓</span><span class="k">levels</span><span class="v">8 levels + a boss</span></div>
+        <div class="line"><span class="d">✓</span><span class="k">build</span><span class="v">motor-bench.html · offline</span></div>
+        <div class="line"><span class="d">✓</span><span class="k">playtest</span><span class="v"><b>16/16</b> runs · every control dragged</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="scene" id="outro">
+  <h1>Drop in your course<br><em>Play it</em></h1>
+  <div class="cmd"><span>$</span> npx skills add alexbond008/playable</div>
+  <p>Claude Code · Codex · Antigravity · OpenCode</p>
+</div>
+<div id="fade"></div>
+<script>
+const CMD = "/playable turn my tutorial into a game: Tutorial 1.1.pdf";
+const $ = (id) => document.getElementById(id);
+const clamp = (x) => Math.max(0, Math.min(1, x));
+const ease = (x) => 1 - Math.pow(1 - clamp(x), 3);
+const lines = [...document.querySelectorAll(".line")];
+// t in seconds. mode "intro": 0..6.2  mode "outro": 0..3
+window.setT = (mode, t) => {
+  $("intro").style.display = mode === "intro" ? "" : "none";
+  $("outro").style.opacity = mode === "outro" ? ease(t / 0.6) : 0;
+  if (mode === "intro") {
+    const n = Math.round(CMD.length * clamp((t - 0.4) / 1.6));
+    $("typed").textContent = CMD.slice(0, n);
+    $("caret").style.opacity = t < 2.2 ? (Math.floor(t * 3) % 2 || n < CMD.length ? 1 : 0) : 0;
+    lines.forEach((l, i) => { const k = ease((t - 2.4 - i * 0.42) / 0.3); l.style.opacity = k; l.style.transform = `translateY(${6 * (1 - k)}px)`; });
+    const h = ease((t - 3.0) / 0.35);
+    $("hl").style.opacity = h;
+    const p = ease((t - 0.0) / 0.8);
+    $("paper").style.transform = `translateY(${30 * (1 - p)}px) rotate(${-2.5 + 1.5 * p}deg) scale(${0.96 + 0.04 * p})`;
+    $("paper").style.opacity = p;
+    // push into the game
+    const z = ease((t - 5.3) / 0.9);
+    document.querySelector("#intro").style.transform = `scale(${1 + 0.5 * z})`;
+    document.querySelector("#intro").style.transformOrigin = "68% 50%";
+    $("fade").style.opacity = clamp((t - 5.5) / 0.7);
+  } else {
+    $("fade").style.opacity = 1 - clamp(t / 0.5);
+  }
+};
+setT("intro", 0);
+</script>

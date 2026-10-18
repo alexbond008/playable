@@ -26,6 +26,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-ui);font
 .bigbox .unit{font-family:var(--f-mono);color:var(--mute);font-size:12px;letter-spacing:.1em}
 .minis{display:flex;flex-wrap:wrap;gap:4px 16px;font-family:var(--f-mono);font-size:12px;font-variant-numeric:tabular-nums}
 .minis i{font-style:normal;color:var(--mute);font-size:10px;letter-spacing:.1em;display:block;text-transform:uppercase}
+.minis i .gk{text-transform:none}
 .minis em{font-style:normal;font-family:var(--f-dot);font-weight:700;font-size:20px;color:var(--ink)}
 .objective:not(:empty){margin-top:4px;font-family:var(--f-mono);font-size:12px;color:var(--ink);background:color-mix(in srgb,var(--panel) 85%,transparent);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:6px 10px;width:fit-content;max-width:100%}
 #panel{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:max(14px,env(safe-area-inset-top,0px));width:340px;max-height:calc(100% - 90px);overflow:auto;pointer-events:auto;background:color-mix(in srgb,var(--panel) 92%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:14px;padding:16px}

@@ -8,7 +8,9 @@ An agent skill that turns a lecture PDF, a tutorial sheet, coursework or a whole
 
 [Play the games](https://alexbond008.github.io/playable/) · [Install](#install) · [How it works](#how-it-works)
 
-<a href="https://alexbond008.github.io/playable/games/motor-bench.html"><img src="site/covers/motor-bench.jpg" alt="Motor Bench: a 3D DC motor test bench built from a tutorial sheet" width="100%"></a>
+<a href="https://alexbond008.github.io/playable/games/motor-bench.html"><img src="site/hero.gif" alt="A tutorial PDF goes in; Playable checks all 8 answers, builds Motor Bench, and the student tunes a real 3D motor to 2000 rpm" width="100%"></a>
+
+<sub>Tutorial 1.1 in, PLAYABLE-01 out. Real footage of the game, played by the playtest bot.</sub>
 
 </div>
 

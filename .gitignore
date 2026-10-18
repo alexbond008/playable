@@ -7,3 +7,5 @@ shots/
 *.artifact.html
 source-pack/
 docs/
+site/hero-src/frames/
+site/hero-src/page.jpg

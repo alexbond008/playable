@@ -15,6 +15,7 @@ Each rule here comes from something that actually went wrong. Add a new entry ev
 - **Anchored cards leaving the screen.** The equation card anchored above the motor clipped off the top. Clamp every anchored overlay inside the viewport.
 - **Platform chrome covering controls.** A host popover sat over the top-right control panel. Don't put the only copy of an important control in the top-right corner; every control also has a keyboard shortcut.
 - **"-0.0" readouts.** Format signed zero as 0.
+- **`text-transform: uppercase` on symbols.** CSS uppercases Greek too: η becomes Η, which reads as "H". The engine keeps Greek letters in readout labels in their own case; do the same in any uppercase label you add.
 
 ## Measurement
 

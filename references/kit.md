@@ -121,6 +121,7 @@ playable({
 - **Orange means grabbable, automatically.** Any mesh registered with `interaction.register` switches between the `accent` and `accentOff` materials as its `enabled()` changes, so disabled controls never stay orange. Registered meshes are also marked `userData.noMerge`, so a `merge: true` group never swallows a grab target.
 - **`B.group({ merge: true })`** merges the static parts inside a moving group (rotors, flywheels, whole toggled assemblies) into one mesh per material. Set `mesh.userData.noMerge = true` on anything that must stay separate.
 - **Per-device framing:** `level.phoneFocus` / `camera.phoneFocus` replace `focus` on portrait phones. `camera.avoidReadouts: true` keeps the subject below a full-width readout block on phones.
+- **Dev counter:** the fps/draws/tris readout is hidden for players. Add `#perf` to the URL or press the backtick key to show it.
 - **Readout formatters** receive the world: `format(value, world)`.
 - **Doto decimals:** Doto draws "." like a "+". The HUD and every canvas `fillText` in a Doto font draw "." and "," in JetBrains Mono automatically; nothing to do in parts.
 - **Badges by trust:** `verified.json` counts cases by `trust` (`official`, `derived`, `simulator`, `student`) and summarises `claims`. The map shows "N/N answers verified" only for official answers; otherwise "N results derived", plus reality checks and "your work: X/Y right".

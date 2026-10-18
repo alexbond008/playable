@@ -75,6 +75,9 @@ export async function playable(def) {
   const mapBtn = h("button", { class: "tool", onclick: () => openMap() }, "Map");
   const tools = h("nav", { id: "tools" }, mapBtn, toolboxBtn, soundBtn, h("span", { class: "looks" }, lookBtns));
   const perf = h("div", { id: "perf" });
+  // Dev counter: hidden for players; #perf in the URL or the ` key shows it.
+  perf.hidden = !/perf/.test(location.hash + location.search);
+  addEventListener("keydown", (e) => { if (e.key === "`") perf.hidden = !perf.hidden; });
   const badge = h("div", { id: "badge", hidden: true });
   const toast = h("div", { id: "toast", hidden: true });
   const toolbox = h("div", { id: "toolbox", hidden: true });
@@ -428,7 +431,7 @@ export async function playable(def) {
     if (!toolbox.hidden) toolbox.querySelectorAll("[data-eq]").forEach((el) => { const e = def.equations.find((q) => q.id === el.dataset.eq); el.textContent = e.live ? e.live(world) : ""; });
     for (const a of world.anchors?.() ?? []) placeTag(a.el, a.at());
     setReadouts();
-    perf.textContent = `${stage.perf.fps} fps · ${stage.perf.calls} draws · ${Math.round(stage.perf.tris / 1000)}k tris`;
+    if (!perf.hidden) perf.textContent = `${stage.perf.fps} fps · ${stage.perf.calls} draws · ${Math.round(stage.perf.tris / 1000)}k tris`;
   }
 
   async function autoplay(id, { simSeconds = 60, probe = true } = {}) {

@@ -6,11 +6,15 @@ import { badgeText } from "../kit/core/badge.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const out = join(root, "docs");
+const covers = join(root, "site", "covers");
+// Absolute base for social cards (og:image must be absolute). Override with SITE_URL for forks.
+const siteUrl = (process.env.SITE_URL || "https://alexbond008.github.io/playable/").replace(/\/?$/, "/");
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 rmSync(out, { recursive: true, force: true });
 mkdirSync(join(out, "games"), { recursive: true });
 mkdirSync(join(out, "img"), { recursive: true });
+mkdirSync(covers, { recursive: true });
 
 function image(src, dest, width = 1400) {
   try {
@@ -37,8 +41,13 @@ const examples = readdirSync(join(root, "examples"))
 const cards = [];
 for (const ex of examples) {
   copyFileSync(join(ex.dir, `${ex.d}.html`), join(out, "games", `${ex.d}.html`));
-  const img = ex.cover ? image(join(ex.dir, "shots", ex.cover), join(out, "img", `${ex.d}.jpg`)) : null;
-  ex.img = img ? `img/${img.split("/").pop()}` : "";
+  // Covers are committed under site/covers so CI (no shots/, no sips) can build the site.
+  // Regenerate from the latest playtest shot when one exists locally.
+  const committed = [".jpg", ".png"].map((x) => join(covers, ex.d + x)).find(existsSync);
+  const fresh = ex.cover ? image(join(ex.dir, "shots", ex.cover), join(covers, `${ex.d}.jpg`)) : null;
+  const src = fresh || committed;
+  if (src) copyFileSync(src, join(out, "img", src.split("/").pop()));
+  ex.img = src ? `img/${src.split("/").pop()}` : "";
   const v = ex.verified;
   const badge = v ? badgeText(v).replace(/^✓ /, "") : "";
   const source = (ex.lesson.source?.title || "").split(/[,(—–]/)[0].trim();
@@ -71,6 +80,7 @@ const fill = {
   HERO_SOURCE: (hero?.lesson.source?.title || "").split(/[—–(]/)[0].trim(),
   HERO_GAME: hero ? `games/${hero.d}.html` : "",
   TRUTH_SAMPLE: truthSample,
+  SITE_URL: siteUrl,
 };
 for (const [k, v] of Object.entries(fill)) html = html.replaceAll(`{{${k}}}`, k === "GALLERY" || k === "TRUTH_SAMPLE" ? v : esc(v));
 if (hero?.img) copyFileSync(join(out, hero.img), join(out, "img", "og.jpg"));

@@ -1,0 +1,40 @@
+name: Site
+
+# Builds the landing page from examples/ and site/ and deploys it to GitHub Pages.
+# Skipped while the repository is private (Pages on a private repo needs a paid plan,
+# and would publish the site before launch).
+
+on:
+  push:
+    branches: [main]
+    paths: ["examples/**", "site/**", "scripts/site.mjs", "kit/core/badge.mjs"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/site.mjs
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deployment
+        uses: actions/deploy-pages@v4

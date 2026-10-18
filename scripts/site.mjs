@@ -38,6 +38,8 @@ const examples = readdirSync(join(root, "examples"))
   })
   .sort((a, b) => a.lesson.serial.localeCompare(b.lesson.serial));
 
+const collection = existsSync(join(root, "site", "collection.json")) ? JSON.parse(readFileSync(join(root, "site", "collection.json"), "utf8")) : {};
+const blurbs = collection.blurbs || {};
 const cards = [];
 for (const ex of examples) {
   copyFileSync(join(ex.dir, `${ex.d}.html`), join(out, "games", `${ex.d}.html`));
@@ -48,19 +50,42 @@ for (const ex of examples) {
   const src = fresh || committed;
   if (src) copyFileSync(src, join(out, "img", src.split("/").pop()));
   ex.img = src ? `img/${src.split("/").pop()}` : "";
-  const v = ex.verified;
-  const badge = v ? badgeText(v).replace(/^✓ /, "") : "";
-  const source = (ex.lesson.source?.title || "").split(/[,(—–]/)[0].trim();
-  cards.push(`<a class="card" href="games/${ex.d}.html">
-      <div class="shot">${ex.img ? `<img src="${ex.img}" alt="${esc(ex.lesson.title)}, a reveal moment" loading="lazy">` : ""}</div>
-      <div class="meta">
-        <span class="serial">${esc(ex.lesson.serial)}</span>
-        <h3>${esc(ex.lesson.title)}</h3>
-        <span class="src">${esc(source)}</span>
-        <div class="chips">${badge ? `<span class="chip ok">✓ ${esc(badge)}</span>` : ""}${(ex.lesson.subject || []).slice(0, 3).map((s) => `<span class="chip">${esc(s)}</span>`).join("")}</div>
-      </div>
-    </a>`);
+  const badge = ex.verified ? badgeText(ex.verified).replace(/^✓ /, "") : "";
+  const blurb = blurbs[ex.d] || (ex.lesson.source?.title || "").split(/[,(—–]/)[0].trim();
+  const num = ex.lesson.serial.replace(/^\D+/, "");
+  const href = `games/${ex.d}.html`;
+  cards.push(`      <figure class="spec rv">
+        <span class="pl">${esc(ex.lesson.serial)}</span>
+        <a class="shot" href="${href}" tabindex="-1" aria-hidden="true">${ex.img ? `<img src="${ex.img}" width="1400" height="875" alt="" loading="lazy">` : ""}</a>
+        <figcaption>
+          <span class="big" aria-hidden="true">${esc(num)}</span>
+          <h3><a href="${href}">${esc(ex.lesson.title)}</a></h3>
+          <p class="from">${esc(blurb)}</p>
+          ${badge ? `<p class="badge"><span class="ok">✓</span> ${esc(badge)}</p>` : ""}
+        </figcaption>
+      </figure>`);
 }
+// Games announced in site/collection.json but not built yet show as "in the workshop".
+const built = new Set(examples.map((e) => e.lesson.serial));
+const workshop = (collection.workshop || []).filter((w) => !built.has(w.serial));
+for (const w of workshop) {
+  cards.push(`      <figure class="spec wip rv">
+        <div class="wip-box">
+          <span class="big" aria-hidden="true">${esc(w.serial.replace(/^\D+/, ""))}</span>
+          <div>
+            <p class="label" style="margin-bottom:6px">${esc(w.serial)}</p>
+            <h3>${esc(w.title)}</h3>
+            <p>${esc(w.blurb)}</p>
+          </div>
+          <span class="stamp">In the workshop</span>
+        </div>
+        <figcaption class="sr-only">Being built now; no link yet.</figcaption>
+      </figure>`);
+}
+const words = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"];
+const total = examples.length + workshop.length;
+const totalWord = words[total] || String(total);
+const playWord = (words[examples.length] || String(examples.length)).toLowerCase();
 
 const hero = examples[0];
 const truthSample = `case  field  answer  model   result
@@ -81,9 +106,15 @@ const fill = {
   HERO_GAME: hero ? `games/${hero.d}.html` : "",
   TRUTH_SAMPLE: truthSample,
   SITE_URL: siteUrl,
+  SPEC_HEAD: `${totalWord} specimen${total === 1 ? "" : "s"}, all from real coursework.`,
+  SPEC_PLAY: workshop.length ? `The first ${playWord} play in your browser right now.` : `All ${playWord} play in your browser right now.`,
 };
 for (const [k, v] of Object.entries(fill)) html = html.replaceAll(`{{${k}}}`, k === "GALLERY" || k === "TRUTH_SAMPLE" ? v : esc(v));
 if (hero?.img) copyFileSync(join(out, hero.img), join(out, "img", "og.jpg"));
+for (const f of existsSync(join(root, "site", "assets")) ? readdirSync(join(root, "site", "assets")) : []) {
+  mkdirSync(join(out, "assets"), { recursive: true });
+  copyFileSync(join(root, "site", "assets", f), join(out, "assets", f));
+}
 writeFileSync(join(out, "index.html"), html);
 writeFileSync(join(out, ".nojekyll"), "");
 console.log(`site → docs/ · ${examples.length} game(s): ${examples.map((e) => e.lesson.serial).join(", ")}`);

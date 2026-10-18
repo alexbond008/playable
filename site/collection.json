@@ -1,0 +1,11 @@
+{
+  "blurbs": {
+    "motor-bench": "Tutorial 1.1, brushed DC motors. 8 levels and a boss.",
+    "memory-warehouse": "C++ pointers and structures. Memory as a warehouse: crates sized in bytes, pointers as cables, padding as foam.",
+    "match-maker": "Microwaves coursework CW2: impedance matching on a slotted line, Smith chart, VNA.",
+    "rig-tuner": "Control coursework: velocity and position control of a real DC motor rig, with its measured data."
+  },
+  "workshop": [
+    { "serial": "PLAYABLE-05", "title": "Lung Airways", "blurb": "The author's own final-year project: graph neural networks simulating airflow in the lungs." }
+  ]
+}
